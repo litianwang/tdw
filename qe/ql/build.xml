@@ -41,7 +41,24 @@
     <pathelement location="${hive.conf.dir}"/>
     <pathelement location="${hive.root}/cli/lib/jline-0.9.94.jar"/>
     <pathelement location="${hadoop.test.jar}"/>
+    <pathelement location="${hadoop.common.test.jar}"/>
+	<pathelement location="${hadoop.hdfs.test.jar}"/>
+	<pathelement location="${hadoop.mapreduce.test.jar}"/>
+    <pathelement location="${hadoop.common.jar}"/>
+    <pathelement location="${hadoop.hdfs.jar}"/>
+	<pathelement location="${hadoop.mapreduce.jar}"/>
+    <pathelement location="${hadoop.common.jars}"/>
     <pathelement location="${jetty.test.jar}"/>
+	<pathelement location="${activation.jar}"/>
+	<pathelement location="${commons.net.jar}"/>
+	<pathelement location="${guava.jar}"/>
+	<pathelement location="${commons-configuration.jar}"/>
+	<pathelement location="${hadoop-auth.jar}"/>
+	<pathelement location="${hadoop-annotations.jar}"/>
+	<pathelement location="${slf4j-api.jar}"/>
+	<pathelement location="${slf4j-log4j12.jar}"/>
+	<pathelement location="${avro.jar}"/>
+
     <pathelement location="${servlet.test.jar}"/>
     <pathelement location="${jasper.test.jar}"/>
     <pathelement location="${jasperc.test.jar}"/>

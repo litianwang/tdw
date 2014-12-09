@@ -268,7 +268,10 @@ public class CliDriver {
     if (!oproc.process_stage1(args)) {
       System.exit(1);
     }
-
+    
+    //set dns cache to 3s;the negtive cache default value is 10s in java
+    java.security.Security.setProperty("networkaddress.cache.ttl" , "3");
+    
     SessionState.initHiveLog4j();
 
     CliSessionState ss = new CliSessionState(new HiveConf(SessionState.class));

@@ -44,13 +44,11 @@ import org.apache.hadoop.hive.metastore.api.tdw_sys_fields_statistics;
 import org.apache.hadoop.hive.metastore.api.tdw_sys_table_statistics;
 import org.apache.hadoop.hive.metastore.api.User;
 import org.apache.hadoop.hive.metastore.api.group;
-
 import org.apache.hadoop.hive.metastore.api.IndexItem;
 import org.apache.hadoop.hive.metastore.model.MGroup;
 import org.apache.hadoop.hive.metastore.model.Mtdw_query_info;
 import org.apache.hadoop.hive.metastore.model.Mtdw_query_stat;
 import org.apache.hadoop.hive.metastore.api.TableInfo;
-
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.thrift.TException;
 
@@ -405,6 +403,9 @@ public interface RawStore extends Configurable {
       throws NoSuchObjectException, MetaException;
 
   public abstract boolean isAUserName(String userName)
+      throws NoSuchObjectException, MetaException;
+
+  public abstract boolean hasAuthOnLocation(String who, String location)
       throws NoSuchObjectException, MetaException;
 
   public abstract boolean hasAuth(String who, int privIndex)

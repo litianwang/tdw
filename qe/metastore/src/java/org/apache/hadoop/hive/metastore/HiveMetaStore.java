@@ -211,6 +211,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       syncTime = hiveConf.getLong("hive.metastore.router.buffer.sync.time", 10);
       timeout = hiveConf.getInt("hive.pg.timeout", 10);
 
+      JDBCStore.initMasterToSlaveMap(hiveConf);
       initSyncThread();
 
       wh = new Warehouse(hiveConf);
@@ -2741,6 +2742,19 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
       try {
         return getMS().hasAuth(who, priv);
+      } catch (NoSuchObjectException e) {
+        return false;
+      }
+    }
+    
+    @Override
+    public boolean hasAuthOnLocation(String who, String location) 
+        throws MetaException, TException {
+      this.incrementCounter("hasAuthOnLocation");
+      logStartFunction("hasAuthOnLocation: who=" + who + ", location=" + location);
+      
+      try {
+        return getMS().hasAuthOnLocation(who, location);
       } catch (NoSuchObjectException e) {
         return false;
       }

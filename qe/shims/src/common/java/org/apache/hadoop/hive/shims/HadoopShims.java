@@ -25,6 +25,8 @@ import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import java.io.IOException;
+import javax.security.auth.login.LoginException;
+import org.apache.hadoop.security.UserGroupInformation;
 
 public interface HadoopShims {
 
@@ -49,4 +51,23 @@ public interface HadoopShims {
 
   public int compareText(Text a, Text b);
 
+  
+  /**
+   * Get the UGI that the given job configuration will run as.
+   *
+   * In secure versions of Hadoop, this simply returns the current
+   * access control context's user, ignoring the configuration.
+   */
+
+  public void closeAllForUGI(UserGroupInformation ugi);
+
+  public UserGroupInformation getUGIForConf(Configuration conf) throws LoginException, IOException;
+  
+  public String getJobLauncherHttpAddress(Configuration conf);
+
+  public String getJobLauncherRpcAddress(Configuration conf);
+  
+  public boolean isLocalMode(Configuration conf);
+  
+  public String getJobTrackerConf(Configuration conf);
 }

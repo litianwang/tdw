@@ -32,7 +32,6 @@ import java.util.regex.PatternSyntaxException;
 
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFArray;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFArrayContains;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.ql.plan.exprNodeDesc;
@@ -44,7 +43,6 @@ import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.udf.UDAFMax;
 import org.apache.hadoop.hive.ql.udf.UDAFMin;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCorrelation;
-
 import org.apache.hadoop.hive.ql.udf.UDFSIGN;
 import org.apache.hadoop.hive.ql.udf.UDFADD_MONTHS;
 import org.apache.hadoop.hive.ql.udf.UDFTRUNC;
@@ -61,118 +59,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTimestamp;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFFromUtcTimestamp;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToUtcTimestamp;
-
-import org.apache.hadoop.hive.ql.udf.UDFBitand;
-import org.apache.hadoop.hive.ql.udf.UDFInstr;
-import org.apache.hadoop.hive.ql.udf.UDFMod;
-import org.apache.hadoop.hive.ql.udf.UDFSysdate;
-import org.apache.hadoop.hive.ql.udf.UDFNVL;
-import org.apache.hadoop.hive.ql.udf.UDFNVL2;
-import org.apache.hadoop.hive.ql.udf.UDFNextDay;
-import org.apache.hadoop.hive.ql.udf.UDFSysTimestamp;
-import org.apache.hadoop.hive.ql.udf.UDFToNumber;
-import org.apache.hadoop.hive.ql.udf.UDFToChar;
-import org.apache.hadoop.hive.ql.udf.UDFToDate2;
-
-import org.apache.hadoop.hive.ql.udf.UDFIntersect;
-
-import org.apache.hadoop.hive.ql.udf.UDF1ToBoolean;
-import org.apache.hadoop.hive.ql.udf.UDF1ToByte;
-import org.apache.hadoop.hive.ql.udf.UDF1ToDouble;
-import org.apache.hadoop.hive.ql.udf.UDF1ToFloat;
-import org.apache.hadoop.hive.ql.udf.UDF1ToInteger;
-import org.apache.hadoop.hive.ql.udf.UDF1ToLong;
-import org.apache.hadoop.hive.ql.udf.UDF1ToShort;
-import org.apache.hadoop.hive.ql.udf.UDF1ToString;
-import org.apache.hadoop.hive.ql.udf.UDFAbs;
-import org.apache.hadoop.hive.ql.udf.UDFAcos;
-import org.apache.hadoop.hive.ql.udf.UDFAscii;
-import org.apache.hadoop.hive.ql.udf.UDFAsin;
-import org.apache.hadoop.hive.ql.udf.UDFBetween;
-import org.apache.hadoop.hive.ql.udf.UDFBin;
-import org.apache.hadoop.hive.ql.udf.UDFCeil;
-import org.apache.hadoop.hive.ql.udf.UDFCommonStr;
-import org.apache.hadoop.hive.ql.udf.UDFComparison;
-import org.apache.hadoop.hive.ql.udf.UDFConcat;
-import org.apache.hadoop.hive.ql.udf.UDFConv;
-import org.apache.hadoop.hive.ql.udf.UDFCos;
-import org.apache.hadoop.hive.ql.udf.UDFDateAdd;
-import org.apache.hadoop.hive.ql.udf.UDFDateDiff;
-import org.apache.hadoop.hive.ql.udf.UDFDateSub;
-import org.apache.hadoop.hive.ql.udf.UDFDayOfMonth;
-import org.apache.hadoop.hive.ql.udf.UDFExp;
-import org.apache.hadoop.hive.ql.udf.UDFFloor;
-import org.apache.hadoop.hive.ql.udf.UDFFromUnixTime;
-import org.apache.hadoop.hive.ql.udf.UDFHex;
-import org.apache.hadoop.hive.ql.udf.UDFHour;
-import org.apache.hadoop.hive.ql.udf.UDFIPChange;
-import org.apache.hadoop.hive.ql.udf.UDFInet_aton;
-import org.apache.hadoop.hive.ql.udf.UDFInet_ntoa;
-import org.apache.hadoop.hive.ql.udf.UDFIpInfo;
-import org.apache.hadoop.hive.ql.udf.UDFJson;
-import org.apache.hadoop.hive.ql.udf.UDFLTrim;
-import org.apache.hadoop.hive.ql.udf.UDFLength;
-import org.apache.hadoop.hive.ql.udf.UDFLike;
-import org.apache.hadoop.hive.ql.udf.UDFLn;
-import org.apache.hadoop.hive.ql.udf.UDFLog;
-import org.apache.hadoop.hive.ql.udf.UDFLog10;
-import org.apache.hadoop.hive.ql.udf.UDFLog2;
-import org.apache.hadoop.hive.ql.udf.UDFLower;
-import org.apache.hadoop.hive.ql.udf.UDFLpad;
-import org.apache.hadoop.hive.ql.udf.UDFMd5Hash;
-import org.apache.hadoop.hive.ql.udf.UDFMinute;
-import org.apache.hadoop.hive.ql.udf.UDFMonth;
-import org.apache.hadoop.hive.ql.udf.UDFNumberFormat;
-import org.apache.hadoop.hive.ql.udf.UDFOPBitShiftLeft;
-import org.apache.hadoop.hive.ql.udf.UDFOPBitShiftRight;
-import org.apache.hadoop.hive.ql.udf.UDFUinChange;
-import org.apache.hadoop.hive.ql.udf.UDFWeek;
-import org.apache.hadoop.hive.ql.udf.UDFOPBitAnd;
-import org.apache.hadoop.hive.ql.udf.UDFOPBitNot;
-import org.apache.hadoop.hive.ql.udf.UDFOPBitOr;
-import org.apache.hadoop.hive.ql.udf.UDFOPBitXor;
-import org.apache.hadoop.hive.ql.udf.UDFOPDivide;
-import org.apache.hadoop.hive.ql.udf.UDFOPDivideZeroReturnNull;
-import org.apache.hadoop.hive.ql.udf.UDFOPLongDivide;
-import org.apache.hadoop.hive.ql.udf.UDFOPMinus;
-import org.apache.hadoop.hive.ql.udf.UDFOPMod;
-import org.apache.hadoop.hive.ql.udf.UDFOPMultiply;
-import org.apache.hadoop.hive.ql.udf.UDFOPNegative;
-import org.apache.hadoop.hive.ql.udf.UDFOPPlus;
-import org.apache.hadoop.hive.ql.udf.UDFOPPositive;
-import org.apache.hadoop.hive.ql.udf.UDFParseUrl;
-import org.apache.hadoop.hive.ql.udf.UDFPosMod;
-import org.apache.hadoop.hive.ql.udf.UDFPower;
-import org.apache.hadoop.hive.ql.udf.UDFRTrim;
-import org.apache.hadoop.hive.ql.udf.UDFRand;
-import org.apache.hadoop.hive.ql.udf.UDFRegExp;
-import org.apache.hadoop.hive.ql.udf.UDFRegExpExtract;
-import org.apache.hadoop.hive.ql.udf.UDFRegExpReplace;
-import org.apache.hadoop.hive.ql.udf.UDFRepeat;
-import org.apache.hadoop.hive.ql.udf.UDFReverse;
-import org.apache.hadoop.hive.ql.udf.UDFRound;
-import org.apache.hadoop.hive.ql.udf.UDFRpad;
-import org.apache.hadoop.hive.ql.udf.UDFSecond;
-import org.apache.hadoop.hive.ql.udf.UDFSin;
-import org.apache.hadoop.hive.ql.udf.UDFSpace;
-import org.apache.hadoop.hive.ql.udf.UDFSqrt;
-import org.apache.hadoop.hive.ql.udf.UDFSubstr;
-import org.apache.hadoop.hive.ql.udf.UDFToBoolean;
-import org.apache.hadoop.hive.ql.udf.UDFToByte;
-import org.apache.hadoop.hive.ql.udf.UDFToDouble;
-import org.apache.hadoop.hive.ql.udf.UDFToFloat;
-import org.apache.hadoop.hive.ql.udf.UDFToInteger;
-import org.apache.hadoop.hive.ql.udf.UDFToLong;
-import org.apache.hadoop.hive.ql.udf.UDFToShort;
-import org.apache.hadoop.hive.ql.udf.UDFToString;
-import org.apache.hadoop.hive.ql.udf.UDFToTimestamp;
-import org.apache.hadoop.hive.ql.udf.UDFTrim;
-import org.apache.hadoop.hive.ql.udf.UDFType;
-import org.apache.hadoop.hive.ql.udf.UDFUnixTimeStamp;
-import org.apache.hadoop.hive.ql.udf.UDFUpper;
-import org.apache.hadoop.hive.ql.udf.UDFWeekOfYear;
-import org.apache.hadoop.hive.ql.udf.UDFYear;
-import org.apache.hadoop.hive.ql.udf.UDFUnhex;
+import org.apache.hadoop.hive.ql.udf.*;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFBridge;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCount;
@@ -187,11 +74,11 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFVariance;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFVarianceSample;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFnGrams;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFContextNGrams;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFPosExplode;
 import org.apache.hadoop.hive.ql.udf.generic.SimpleGenericUDAFParameterInfo;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCovariance;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCovarianceSample;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCardinalityEstimation;
-
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCollectSet;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFMax;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFMin;
@@ -220,6 +107,8 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFRegExpInstr;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSize;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSplit;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFParseXmlCount;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFParseXmlContent;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFStruct;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTestGBK;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUnion;
@@ -240,19 +129,17 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDWFResolver;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDWFRowNumber;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDWFSum;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDWRank;
-
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTF;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFExplode;
-
 import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.util.ReflectionUtils;
-
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFGreatest;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUrlDecode;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFRc4;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFBitor;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFParseQQFriendFlag;
 
@@ -341,6 +228,8 @@ public class FunctionRegistry {
     registerUDF("regexp_extract", UDFRegExpExtract.class, false);
     registerUDF("parse_url", UDFParseUrl.class, false);
     registerGenericUDF("split", GenericUDFSplit.class);
+    registerGenericUDF("parse_xml_count", GenericUDFParseXmlCount.class);
+    registerGenericUDF("parse_xml_content", GenericUDFParseXmlContent.class);
 
     registerGenericUDF("array_contains", GenericUDFArrayContains.class);
     registerGenericUDF("array", GenericUDFArray.class);
@@ -359,7 +248,8 @@ public class FunctionRegistry {
     registerUDF("second", UDFSecond.class, false);
     registerUDF("weekofyear", UDFWeekOfYear.class, false);
     registerUDF("commonStr", UDFCommonStr.class, false);
-
+    registerUDF("base64", UDFBase64.class, false);    
+    registerUDF("unbase64", UDFUnbase64.class, false);
     registerUDF("week", UDFWeek.class, false);
 
     registerUDF("date_add", UDFDateAdd.class, false);
@@ -367,6 +257,7 @@ public class FunctionRegistry {
     registerUDF("datediff", UDFDateDiff.class, false);
 
     registerUDF("get_json_object", UDFJson.class, false);
+    registerUDF("get_main_domain", UDFMainDomain.class, false); 
 
     registerUDF("+", UDFOPPlus.class, true);
     registerUDF("-", UDFOPMinus.class, true);
@@ -459,6 +350,9 @@ public class FunctionRegistry {
     registerUDF("uinchange", UDFUinChange.class, false);
     registerUDF("ipchange", UDFIPChange.class, false);
     registerUDF("md5", UDFMd5Hash.class, false);
+    registerUDF("str_hash_bigint", UDFBKDRHash2Long.class, false);
+    registerUDF("AesEncryption", AesEncryption.class, false);
+    registerUDF("AesDecryption", AesDecryption.class, false);
 
     registerGenericUDF("sentences", GenericUDFSentences.class);
 
@@ -514,12 +408,14 @@ public class FunctionRegistry {
     registerGenericUDF("elt", GenericUDFElt.class);
 
     registerGenericUDTF("explode", GenericUDTFExplode.class);
+    registerGenericUDTF("posexplode", GenericUDTFPosExplode.class);
 
     registerGenericUDF("greatest", GenericUDFGreatest.class);
     registerGenericUDF("least", GenericUDFLeast.class);
     registerGenericUDF("regexp_instr", GenericUDFRegExpInstr.class);
     registerGenericUDF("url_decode", GenericUDFUrlDecode.class);
     registerGenericUDF("parse_qqfriend_flag", GenericUDFParseQQFriendFlag.class);
+    registerGenericUDF("rc4", GenericUDFRc4.class);
 
     registerGenericUDF("gbk2utf8", GenericUDFTestGBK.class);
 
@@ -948,9 +844,9 @@ public class FunctionRegistry {
         }
       }
 
-      LOG.info("Method " + (match ? "did" : "didn't") + " match: passed = "
-          + argumentsPassed + " accepted = " + argumentsAccepted + " method = "
-          + m);
+      //LOG.info("Method " + (match ? "did" : "didn't") + " match: passed = "
+      //    + argumentsPassed + " accepted = " + argumentsAccepted + " method = "
+      //    + m);
       if (match) {
         if (conversionCost < leastConversionCost) {
           udfMethod = m;
@@ -1069,4 +965,4 @@ public class FunctionRegistry {
   public static boolean isOpLessThan(exprNodeDesc desc) {
     return GenericUDFOPLessThan.class == getGenericUDFClassFromExprDesc(desc);
   }
-}
+    public static boolean isOpIn(exprNodeDesc desc)   {          return GenericUDFIn.class == getGenericUDFClassFromExprDesc(desc);         }    public static boolean isFuncRunningCompute(exprNodeDesc desc)   {          return ((UDFRand.class == getUDFClassFromExprDesc(desc))        || UDFSysTimestamp.class == getUDFClassFromExprDesc(desc));        }  }

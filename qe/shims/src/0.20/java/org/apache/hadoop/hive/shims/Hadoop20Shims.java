@@ -26,6 +26,8 @@ import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import java.io.IOException;
+import org.apache.hadoop.security.UserGroupInformation;
+import javax.security.auth.login.LoginException;
 
 public class Hadoop20Shims implements HadoopShims {
   public boolean usesJobShell() {
@@ -69,6 +71,42 @@ public class Hadoop20Shims implements HadoopShims {
 
   public int compareText(Text a, Text b) {
     return a.compareTo(b);
+  }
+
+  @Override
+  public void closeAllForUGI(UserGroupInformation ugi) {
+    // TODO Auto-generated method stub
+    
+}
+
+  @Override
+  public UserGroupInformation getUGIForConf(Configuration conf)
+      throws LoginException, IOException {
+    UserGroupInformation ugi = UserGroupInformation.readFrom(conf);
+    if(ugi == null) {
+      ugi = UserGroupInformation.login(conf);
+    }
+    return ugi;
+  }
+
+  @Override
+  public String getJobLauncherHttpAddress(Configuration conf) {
+    return conf.get("mapred.job.tracker.http.address");
+  }
+
+  @Override
+  public String getJobLauncherRpcAddress(Configuration conf){
+    return conf.get("mapred.job.tracker");
+  }
+
+  @Override
+  public boolean isLocalMode(Configuration conf) {
+    return "local".equals(getJobLauncherRpcAddress(conf));
+  }
+  
+  @Override
+  public String getJobTrackerConf(Configuration conf) {
+    return "mapred.job.tracker="+conf.get("mapred.job.tracker");
   }
 
 }

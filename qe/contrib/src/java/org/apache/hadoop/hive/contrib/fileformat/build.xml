@@ -16,6 +16,11 @@
     <path id="classpath">
 	    <fileset dir="${hive.root}/lib" includes="**/*.jar" excludes="hive_contrib.jar"/>
         <pathelement location="${hadoop.jar}"/>
+        <pathelement location="${hadoop.common.jar}"/>
+        <pathelement location="${hadoop.hdfs.jar}"/>
+        <pathelement location="${hadoop.mapreduce.jar}"/>
+    	<pathelement location="${hadoop.cdh3.core.jar}"/>
+        <pathelement location="${hadoop.cdh3.hdfs.jar}"/>
         <fileset dir="${build.dir.hive}" includes="*/*.jar" excludes="hive_contrib.jar"/>
     </path>
     
@@ -44,7 +49,7 @@
 		    <exclude name="META-INF/MANIFEST.MF"/>
 	        </patternset>
 	    </unzip>
-	    <unzip src="${lib.dir}/protobuf-java-2.3.0.jar" dest="${classes.dir}">
+	    <unzip src="${lib.dir}/protobuf-java-2.5.0.jar" dest="${classes.dir}">
 	        <patternset>
 		    <exclude name="META-INF"/>
 		    <exclude name="META-INF/MANIFEST.MF"/>

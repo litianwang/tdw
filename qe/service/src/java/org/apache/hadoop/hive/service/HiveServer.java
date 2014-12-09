@@ -445,8 +445,13 @@ public class HiveServer extends ThriftHive {
                 }
                 tmpinfo.setBIQueryString(qstr);
                 String tmpstr = tmpinfo.getQueryId();
-                tmpinfo.setQueryId(tmpstr + "_" + genrandnum());
+                String tmpid = tmpstr + "_" + genrandnum();
+                tmpinfo.setQueryId(tmpid);
                 ss.setTdw_query_info(tmpinfo);
+                
+                tdw_query_error_info einfo = sessionItem.getEInfo();
+                einfo.setQueryId(tmpid);
+                ss.setTdw_query_error_info(einfo);
               }
               ((Driver) proc).setSocket(((TSocket) trans).getSocket());
               LOG.info(ss.getSessionName() + " begin process query cmd");
@@ -636,8 +641,13 @@ public class HiveServer extends ThriftHive {
                 }
                 tmpinfo.setBIQueryString(qstr);
                 String tmpstr = tmpinfo.getQueryId();
-                tmpinfo.setQueryId(tmpstr + "_" + genrandnum());
+                String tmpid = tmpstr + "_" + genrandnum();
+                tmpinfo.setQueryId(tmpid);
                 ss.setTdw_query_info(tmpinfo);
+                
+                tdw_query_error_info einfo = sessionItem.getEInfo();
+                einfo.setQueryId(tmpid);
+                ss.setTdw_query_error_info(einfo);
               }
               isHiveQuery = true;
 
@@ -1484,7 +1494,11 @@ public class HiveServer extends ThriftHive {
       Properties p = conf.getAllProperties();
       execute(createSQL);
 
-      String hdfsDefalutName = p.getProperty("fs.default.name");
+      String hdfsDefalutName = null;
+      hdfsDefalutName = p.getProperty("fs.defaultFS");
+      if(hdfsDefalutName == null){
+        hdfsDefalutName = p.getProperty("fs.default.name");
+      }
       String warehauseDir = p.getProperty("hive.metastore.warehouse.dir");
       String saveDir = hdfsDefalutName + warehauseDir + "//default_db//"
           + tableName;
@@ -1519,7 +1533,14 @@ public class HiveServer extends ThriftHive {
         dbDirName += ".db";
       }
 
-      String hdfsDefalutName = p.getProperty("fs.default.name");
+      //String hdfsDefalutName = p.getProperty("fs.default.name");
+      
+      String hdfsDefalutName = null;
+      hdfsDefalutName = p.getProperty("fs.defaultFS");
+      if(hdfsDefalutName == null){
+        hdfsDefalutName = p.getProperty("fs.default.name");
+      }
+      
       String warehauseDir = p.getProperty("hive.metastore.warehouse.dir");
       String tableSaveDir = hdfsDefalutName + warehauseDir + "//" + dbDirName
           + "//" + tableName;
@@ -1655,7 +1676,12 @@ public class HiveServer extends ThriftHive {
           String hdfsDefalutName = db.getHdfsscheme();
 
           if (hdfsDefalutName == null) {
+            //hdfsDefalutName = p.getProperty("fs.default.name");
+            
+            hdfsDefalutName = p.getProperty("fs.defaultFS");
+            if(hdfsDefalutName == null){
             hdfsDefalutName = p.getProperty("fs.default.name");
+          }
           }
 
           String hadoopURL = saveDir + "//data_payniexiao"
@@ -1756,7 +1782,12 @@ public class HiveServer extends ThriftHive {
           String hdfsDefalutName = db.getHdfsscheme();
 
           if (hdfsDefalutName == null) {
+            //hdfsDefalutName = p.getProperty("fs.default.name");
+            //String hdfsDefalutName = null;
+            hdfsDefalutName = p.getProperty("fs.defaultFS");
+            if(hdfsDefalutName == null){
             hdfsDefalutName = p.getProperty("fs.default.name");
+          }
           }
 
           Configuration config = new Configuration();
@@ -1770,6 +1801,7 @@ public class HiveServer extends ThriftHive {
             dataImport.setTempTableOs(os);
             LOG.debug("for data import temp table, hdfs path:" + hadoopURL);
           } catch (IOException x) {
+            x.printStackTrace();
             if (dataImport.getTempTableName() != null) {
               LOG.error("ERROR1 " + dataImport.getTempTableName());
               execute("drop table " + dataImport.getTempTableName());
@@ -1782,6 +1814,7 @@ public class HiveServer extends ThriftHive {
           }
         }
       } catch (Exception x) {
+        x.printStackTrace();
         if (dataImport.getTempTableName() != null) {
           execute("drop table " + dataImport.getTempTableName());
           dataImport.setTempTableName(null);
@@ -2302,7 +2335,10 @@ public class HiveServer extends ThriftHive {
       if (args.length >= 1) {
         port = Integer.parseInt(args[0]);
       }
-
+      
+      //set dns cache to 3s;the negtive cache default value is 10s in java
+      java.security.Security.setProperty("networkaddress.cache.ttl" , "3");
+      
       SessionState.initHiveLog4j();
       sessionManager = new HSSessionManager();
       Thread t = new Thread(sessionManager);

@@ -55,7 +55,11 @@ public class MultiHdfsInfo {
   public MultiHdfsInfo(Configuration conf) {
     this.multiHdfsEnable = HiveConf.getBoolVar(conf,
         HiveConf.ConfVars.MULTIHDFSENABLE);
-    this.defaultNNSchema = makeQualified(conf.get("fs.default.name"));
+    String defaultFS = conf.get("fs.defaultFS");
+    if(defaultFS == null){
+      defaultFS = conf.get("fs.default.name");
+    }
+    this.defaultNNSchema = makeQualified(defaultFS);
     this.conf = conf;
     Path tmpPath = new Path(HiveConf.getVar(conf, HiveConf.ConfVars.SCRATCHDIR));
     scratchPath = tmpPath.toUri().getPath();
@@ -68,11 +72,19 @@ public class MultiHdfsInfo {
   public boolean isMultiHdfsEnable() {
     return multiHdfsEnable;
   }
+  
+  public void setMultiHdfsEnable(boolean is){
+	multiHdfsEnable = is;
+  }
+  
+  public String getDefaultNNSchema(){
+	return defaultNNSchema;
+  }
 
   public static String makeQualified(String nnscheme) {
     Path nnPath = new Path(nnscheme);
     return new Path(nnPath.toUri().getScheme() + ":" + "//"
-        + nnPath.toUri().getAuthority()).toString();
+        + (nnPath.toUri().getAuthority() != null ? nnPath.toUri().getAuthority() : "")).toString();
   }
 
   private Path makeExternalScratchDir(URI extURI) throws IOException {

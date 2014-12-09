@@ -36,6 +36,9 @@ public abstract class ShimLoader {
         "org.apache.hadoop.hive.shims.Hadoop19Shims");
     HADOOP_SHIM_CLASSES.put("0.20",
         "org.apache.hadoop.hive.shims.Hadoop20Shims");
+    HADOOP_SHIM_CLASSES.put("2.1", "org.apache.hadoop.hive.shims.Hadoop21Shims");
+    HADOOP_SHIM_CLASSES.put("2.2", "org.apache.hadoop.hive.shims.Hadoop22Shims");
+    HADOOP_SHIM_CLASSES.put("2.4", "org.apache.hadoop.hive.shims.Hadoop22Shims");
   }
 
   private static HashMap<String, String> JETTY_SHIM_CLASSES = new HashMap<String, String>();
@@ -45,6 +48,9 @@ public abstract class ShimLoader {
     JETTY_SHIM_CLASSES.put("0.18", "org.apache.hadoop.hive.shims.Jetty18Shims");
     JETTY_SHIM_CLASSES.put("0.19", "org.apache.hadoop.hive.shims.Jetty19Shims");
     JETTY_SHIM_CLASSES.put("0.20", "org.apache.hadoop.hive.shims.Jetty20Shims");
+    JETTY_SHIM_CLASSES.put("2.1", "org.apache.hadoop.hive.shims.Jetty21Shims");
+    JETTY_SHIM_CLASSES.put("2.2", "org.apache.hadoop.hive.shims.Jetty22Shims");
+    JETTY_SHIM_CLASSES.put("2.4", "org.apache.hadoop.hive.shims.Jetty22Shims");
   }
 
   public synchronized static HadoopShims getHadoopShims() {

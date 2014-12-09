@@ -1,4 +1,7 @@
 query: create external table pgdata1 (key int,value string) stored as pgdata
+FAILED: Error in metadata: ERROR: relation "pgdata1" already exists
+FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask
+FAILED: Unknown exception : null
 query: desc extended pg_data1
 Table pg_data1 does not exist	 	 
 query: explain select * from pgdata1 order by key
@@ -59,13 +62,13 @@ STAGE PLANS:
       limit: -1
 
 query: select * from pgdata1 order by key
-Output: file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201405091204_0.41871109215750446_-1_104643522/10000
+Output: file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201405191721_0.1489674553272632_-1_1193482919/10000
 query: create external table pgdata2 (key int,value string) stored as pgdata
 query: desc extended pgdata2
 key	int	
 value	string	
 	 	 
-Detailed Table Information	Table(tableName:pgdata2, dbName:default_db, owner:root, createTime:1399608272, lastAccessTime:0, retention:0, sd:StorageDescriptor(cols:[FieldSchema(name:key, type:int, comment:null), FieldSchema(name:value, type:string, comment:null)], location:file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/pgdata2, inputFormat:org.apache.hadoop.mapred.TextInputFormat, outputFormat:org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat, compressed:false, numBuckets:-1, serdeInfo:SerDeInfo(name:null, serializationLib:org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe, parameters:{port=5432, user_name=root, pwd=tdwroot, db_type=pg, sql=create table pgdata2(key integer, value text), isctas=false, db_name=tdw, table_name=pgdata2, serialization.format=1, ip=127.0.0.1}), bucketCols:[], sortCols:[], parameters:{}), priPartition:null, subPartition:null, parameters:{EXTERNAL=TRUE, type=pgdata}, viewOriginalText:null, viewExpandedText:null, tableType:EXTERNAL_TABLE, vtables:null, isReplaceOnExit:false)	
+Detailed Table Information	Table(tableName:pgdata2, dbName:default_db, owner:root, createTime:1400491287, lastAccessTime:0, retention:0, sd:StorageDescriptor(cols:[FieldSchema(name:key, type:int, comment:null), FieldSchema(name:value, type:string, comment:null)], location:file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/pgdata2, inputFormat:org.apache.hadoop.mapred.TextInputFormat, outputFormat:org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat, compressed:false, numBuckets:-1, serdeInfo:SerDeInfo(name:null, serializationLib:org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe, parameters:{port=5432, user_name=root, pwd=tdwroot, db_type=pg, sql=create table pgdata2(key integer, value text), isctas=false, db_name=tdw_query_info, table_name=pgdata2, serialization.format=1, ip=127.0.0.1}), bucketCols:[], sortCols:[], parameters:{}), priPartition:null, subPartition:null, parameters:{EXTERNAL=TRUE, type=pgdata}, viewOriginalText:null, viewExpandedText:null, tableType:EXTERNAL_TABLE, vtables:null, isReplaceOnExit:false)	
 query: explain select * from pgdata2 order by key
 ABSTRACT SYNTAX TREE:
   (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TAB pgdata2))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR TOK_ALLCOLREF)) (TOK_ORDERBY (TOK_TABSORTCOLNAMEASC (TOK_TABLE_OR_COL key)))))
@@ -124,7 +127,7 @@ STAGE PLANS:
       limit: -1
 
 query: select * from pgdata2 order by key
-Output: file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201405091204_0.41871109215750446_-1_1111095937/10000
+Output: file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201405191721_0.1489674553272632_-1_1606786167/10000
 query: explain select * from pgdata2 where key < 10
 ABSTRACT SYNTAX TREE:
   (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TAB pgdata2))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR TOK_ALLCOLREF)) (TOK_WHERE (< (TOK_TABLE_OR_COL key) 10))))
@@ -168,4 +171,4 @@ STAGE PLANS:
       limit: -1
 
 query: select * from pgdata2 where key < 10
-Output: file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201405091204_0.41871109215750446_-1_1421004185/10000
+Output: file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201405191721_0.1489674553272632_-1_1596843870/10000

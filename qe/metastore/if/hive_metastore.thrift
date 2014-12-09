@@ -203,7 +203,10 @@ struct  tdw_query_info{
   8: string ip,
   9: string taskid,
   10: string queryState,
-  11: string bIQueryString
+  11: string bIQueryString,
+  12: string port,
+  13: string clientIp,
+  14: string dbName
 }
 
 struct tdw_query_stat{ 
@@ -216,6 +219,17 @@ struct tdw_query_stat{
   7: i32 MapNum,
   8: i32 ReduceNum,
   9: string jtIP
+}
+
+struct tdw_query_error_info{
+  1: string queryId,
+  2: string taskId,
+  3: string errorTime,
+  4: string ip,
+  5: string port,
+  6: string clientIp,
+  7: string errorString,
+  8: string errorId 
 }
 
 struct group{
@@ -800,6 +814,8 @@ service ThriftHiveMetastore extends fb303.FacebookService
 	void modifyColumnComment(1:string dbName, 2:string tblName, 3:string colName, 4:string comment) throws(1:InvalidOperationException o1, 2:MetaException o2)
 	
 	bool isView(1:string dbName, 2:string tblName) throws(1:NoSuchObjectException o1, 2:MetaException o2)
+	
+	bool hasAuthOnLocation(1:string who, 2:string location) throws (1:MetaException o1)
 	
 	bool hasAuth(1:string who, 2:i32 priv) throws(1:MetaException o1)
 	

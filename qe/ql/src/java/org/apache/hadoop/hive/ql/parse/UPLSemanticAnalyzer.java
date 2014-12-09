@@ -339,6 +339,8 @@ public class UPLSemanticAnalyzer extends BaseSemanticAnalyzer {
     else
       collect.addAll(mapredwork.getAliasToWork().values());
 
+    FileSinkOperator fsop = null;
+
     for (Operator<? extends Serializable> op : collect) {
       Operator<? extends Serializable> children;
 
@@ -346,7 +348,7 @@ public class UPLSemanticAnalyzer extends BaseSemanticAnalyzer {
         op = children;
 
         if (op.getName().equals("FS")) {
-          FileSinkOperator fsop = (FileSinkOperator) op;
+          fsop = (FileSinkOperator) op;
           tableDesc table_desc = Utilities.getTableDesc(t);
           fsop.getConf().setTableInfo(table_desc);
           break;
@@ -376,6 +378,17 @@ public class UPLSemanticAnalyzer extends BaseSemanticAnalyzer {
 
     tmp_dir_new = new_work.getFetchDir().get(0);
     LOG.info("Origin select result location: " + tmp_dir_new);
+
+    String tblAuthority = getAuthorityFromPathUrl(location);
+    String tmpAuthotity = getAuthorityFromPathUrl(tmp_dir_new);
+    if (tblAuthority == null || tmpAuthotity == null)
+      throw new SemanticException("Invalid table location");
+    if (!tblAuthority.equals(tmpAuthotity)) {
+      tmp_dir_new = tblAuthority + tmp_dir_new.substring(tmpAuthotity.length());
+      if (fsop != null) {
+        fsop.getConf().setDirName(tmp_dir_new);
+      }
+    }
 
     UpdateWork update = null;
 
@@ -519,6 +532,15 @@ public class UPLSemanticAnalyzer extends BaseSemanticAnalyzer {
     default:
       return;
     }
+  }
+  
+  private String getAuthorityFromPathUrl(String path) {
+    int start = path.indexOf("//");
+    int end = path.indexOf("/", start+2);
+    if (start == -1 || end == -1)
+      return null;
+    String authority = path.substring(0, end);
+    return authority;
   }
 
 }

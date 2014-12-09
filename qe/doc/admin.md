@@ -1,16 +1,17 @@
+tdw邮件列表：[https://groups.google.com/d/forum/tdw-user](https://groups.google.com/d/forum/tdw-user)
 # 环境依赖 #
 - [CentOS-x86-64 6.x](http://www.centos.org/download/)
-- [Oracle JDK 1.6.x](http://www.oracle.com/technetwork/java/javasebusiness/downloads/java-archive-downloads-javase6-419409.html)
+- [Oracle JDK 1.6.x及以上版本](http://www.oracle.com/technetwork/java/javasebusiness/downloads/java-archive-downloads-javase6-419409.html)
 - [Apache-ant 1.7.x及以上版本](http://ant.apache.org/bindownload.cgi)
 - [PostgreSQL 9.2.x及以上版本](http://www.postgresql.org/download/)
-- [Hadoop 0.20.x版本](http://archive.apache.org/dist/hadoop/core/hadoop-0.20.2/)
-- [Protobuf 2.3.0及以上版本](https://code.google.com/p/protobuf/)
+- [Hadoop 2.2.x版本](http://archive.apache.org)
+- [Protobuf 2.5.0版本](https://code.google.com/p/protobuf/)
 - [hadoop-gpl-compression](https://code.google.com/a/apache-extras.org/p/hadoop-gpl-compression/)
 
 # 编译 #
 ## 安装c/c++开发环境 ##
 
-    sudo yum install groupinstall "Development Tools"
+    sudo yum groupinstall "Development Tools"
     sudo yum install glibc-static wget unzip
 
 ## 安装java开发环境 ##
@@ -30,9 +31,9 @@
 
 ## 安装protobuf ##
 
-    wget https://protobuf.googlecode.com/files/protobuf-2.3.0.zip
-    unzip ./protobuf-2.3.0.zip
-    cd ./protobuf-2.3.0
+    wget https://protobuf.googlecode.com/files/protobuf-2.5.0.zip
+    unzip ./protobuf-2.5.0.zip
+    cd ./protobuf-2.5.0
     ./configure
     sudo make install
 
@@ -70,9 +71,9 @@ qe/build/dist目录用来打包部署生产环境。
 # 单机环境搭建 #
 这个章节，我们快速搭建一个单机版的TDW QE环境，并运行简单的SQL进行体验。这个环境中，Hive，元数据，Hadoop都在一台机器上，并且HDFS和MapReduce都是本地运行模式，因此不宜处理较大数据量。
 
-TDW QE安装包中自带了一个hadoop-0.20.0的包在qe/hadoopcore文件夹中，在单机环境中，我们使用这个hadoop在单机环境中运行SQL和MR。这时需要设置HADOOP_HOME指向这个目录。
+TDW QE安装包中自带了一个hadoop-2.2.0的包在qe/hadoopcore文件夹中，在单机环境中，我们使用这个hadoop在单机环境中运行SQL和MR。解压hadoop-2.2.0的压缩包，然后设置HADOOP_HOME指向这个目录。
 
-export HADOOP_HOME=/home/allison/qe/hadoopcore/hadoop-0.20.0
+export HADOOP_HOME=/home/allison/qe/hadoopcore/hadoop-2.2.0
 
 ## 默认元数据配置 ##
 首先在本机上要有PostgreSQL服务，使它监听127.0.0.1的5432端口（默认安装和初始化的PostgreSQL即监听127.0.0.1的5432端口），然后使用PG的管理员身份(一般是初始化PG数据库的linux账号,这里是postgres账户)，运行qe/script/tdw_meta_init.sql脚本，初始化元数据：
@@ -360,7 +361,7 @@ tablename：要创建的表名，支持分区表。创建表的dbname，tablenam
 # 已知问题 #
 1. formatfile存储格式单行记录不能超过32KB，rcfile存储格式默认单行记录不能超过4MB，文本存储格式没有这个限制。因此在使用前，请提前做好评估，选择合适的存储格式建表。
 
-2. 目前tdw的用户名和密码在元数据库中使明文存储的，并且在传输过程中也是明文传输；hadoop的日志和job配置信息，日志可能带有敏感信息，需要控制访问权限。因此，请在安全可信的环境中（使用防火墙隔离或者物理隔离）使用。在TDW未来版本中，将对安全这块进行改进。
+2. 目前tdw的用户名和密码在元数据库中使明文存储的，没有复杂读要求，并且在传输过程中也是明文传输；TDW默认的密码如tdwroot、元数据默认密码tdwmeta、tdw等请及时修改；hadoop的日志和job配置信息，日志可能带有敏感信息，需要控制访问权限。因此，请在安全可信的环境中（使用防火墙隔离或者物理隔离）使用。在TDW未来版本中，将对安全这块进行改进。
 
 3. 在向一个分区表中insert数据时，如果insert的目标分区过大（如数据将insert到超过100个分区），在MR执行过程中可能产生OOM错误，这时请修改SQL逻辑，或者增大MR task的内存配置。
 
@@ -378,7 +379,7 @@ tablename：要创建的表名，支持分区表。创建表的dbname，tablenam
    我们基于apache hive 0.4.1版本，添加了大量SQL语法和函数，在添加过程中，我们尽量参考已有的SQL语法（如MySQL、PostgreSQL），但是很少参考社区hive 0.4.1后的版本的语法。因此TDW QE的SQL语法与apache hive有差异，不完全兼容。对于SQL语法，TDW QE的往往比apache hive的更标准（如cube和rollup的语法）。
 
 5. 与TDW QE配合使用的hadoop版本有哪些？  
-   在腾讯的TDW生产环境中，我们使用的hadoop版本基于hadoop-0.20.1，及CDH3u3（基于apapche hadoop-0.20.2），我们没有测试过更高德hadoop版本。但是理论上与hadoop-0.20.x接口兼容的hadoop版本都可以用。对于hadoop 2.0版本的支持，我们正在开发中，将在未来一两个月完成。
+   在腾讯的TDW生产环境中，我们使用的hadoop版本基于hadoop-2.2.x，目前我们只测试了TDW QE配合hadoop-2.2.x使用，更新版本的hadoop版本我们没有验证。
 
 # TDW相关链接 #
 [腾讯TDW项目：开源的分布式数据仓库](http://code.csdn.net/news/2818988)  

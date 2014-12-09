@@ -67,6 +67,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.AccessControlException;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -212,6 +213,7 @@ import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.shims.ShimLoader;
 
 import org.apache.hadoop.hive.ql.plan.indexWork;
 import org.apache.commons.logging.Log;
@@ -226,6 +228,7 @@ import StorageEngineClient.MyTextInputFormat;
 
 import org.apache.hadoop.hive.ql.dataToDB.StoreAsPgdata;
 import org.apache.hadoop.hive.ql.sqlToPg.SqlCondPushDown;
+import org.apache.hadoop.hive.ql.PBJarTool;
 
 public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
@@ -288,7 +291,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
   private HashMap<String, Boolean> firstItemMap = new HashMap<String, Boolean>();
 
   private String pb_msg_outer_name = null;
-  public static final String protobufPackageName = "tdw";
+  //public static final String protobufPackageName = "tdw";
 
   private static final String COLUMNAR_SERDE = ColumnarSerDe.class.getName();
 
@@ -2186,11 +2189,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
                 if (SessionState.get() != null)
                   SessionState.get().ssLog(
                       "user : " + SessionState.get().getUserName()
-                          + " do not have privilege on DB : "
+                          + " do not have CREATE privilege on DB : "
                           + SessionState.get().getDbName());
                 throw new SemanticException("user : "
                     + SessionState.get().getUserName()
-                    + " do not have privilege on DB : "
+                    + " do not have CREATE privilege on DB : "
                     + SessionState.get().getDbName());
               }
             }
@@ -2244,11 +2247,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
                   if (SessionState.get() != null)
                     SessionState.get().ssLog(
                         "user : " + SessionState.get().getUserName()
-                            + " do not have privilege on DB : "
+                            + " do not have CREATE privilege on DB : "
                             + SessionState.get().getDbName());
                   throw new SemanticException("user : "
                       + SessionState.get().getUserName()
-                      + " do not have privilege on DB : "
+                      + " do not have CREATE privilege on DB : "
                       + SessionState.get().getDbName());
                 }
               }
@@ -2321,11 +2324,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
                   if (SessionState.get() != null)
                     SessionState.get().ssLog(
                         "user : " + SessionState.get().getUserName()
-                            + " do not have privilege on DB : "
+                            + " do not have CREATE privilege on DB : "
                             + SessionState.get().getDbName());
                   throw new SemanticException("user : "
                       + SessionState.get().getUserName()
-                      + " do not have privilege on DB : "
+                      + " do not have CREATE privilege on DB : "
                       + SessionState.get().getDbName());
                 }
               }
@@ -2362,11 +2365,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
                 if (SessionState.get() != null)
                   SessionState.get().ssLog(
                       "user : " + SessionState.get().getUserName()
-                          + " do not have privilege on DB : "
+                          + " do not have CREATE privilege on DB : "
                           + SessionState.get().getDbName());
                 throw new SemanticException("user : "
                     + SessionState.get().getUserName()
-                    + " do not have privilege on DB : "
+                    + " do not have CREATE privilege on DB : "
                     + SessionState.get().getDbName());
               }
             }
@@ -2474,7 +2477,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
               dataExtract.extractDataToHive();
               Properties p = conf.getAllProperties();
               if (!multiHdfsInfo.isMultiHdfsEnable()) {
+                hdfsDefalutName = p.getProperty("fs.defaultFS");
+                if(hdfsDefalutName == null){
                 hdfsDefalutName = p.getProperty("fs.default.name");
+                }
                 tab.setDataLocation(new URI(hdfsDefalutName + filePath));
                 dbDataTmpFilePathes.put(tab.getDbName() + "/" + tab.getName(),
                     hdfsDefalutName + filePath);
@@ -2534,6 +2540,21 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
 
       LOG.debug("Get metadata for subqueries");
+      if (qb.isCTAS()) {
+          if (!db.hasAuth(SessionState.get().getUserName(),
+              Hive.Privilege.CREATE_PRIV, SessionState.get().getDbName(),
+              null)) {
+            if (SessionState.get() != null)
+              SessionState.get().ssLog(
+                  "user : " + SessionState.get().getUserName()
+                      + " do not have CREATE privilege on DB : "
+                      + SessionState.get().getDbName());
+            throw new SemanticException("user : "
+                + SessionState.get().getUserName()
+                + " do not have CREATE privilege on DB : "
+                + SessionState.get().getDbName());
+          }
+      }
       for (String alias : qb.getSubqAliases()) {
         boolean wasView = aliasToViewName.containsKey(alias);
         if (wasView) {
@@ -2930,6 +2951,12 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         SessionState.get().ssLog(
             org.apache.hadoop.util.StringUtils.stringifyException(e));
       throw new SemanticException(e.getMessage(), e);
+    } catch (AccessControlException e) {
+      LOG.error(org.apache.hadoop.util.StringUtils.stringifyException(e));
+      if (SessionState.get() != null)
+        SessionState.get().ssLog(
+            org.apache.hadoop.util.StringUtils.stringifyException(e));
+      throw new SemanticException(e.getMessage(), e);
     } catch (IOException e) {
       e.printStackTrace();
     } catch (InstantiationException e) {
@@ -3074,7 +3101,8 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
         for (String alias : joinTree.getLeftAliases()) {
           TablePartition tab = qb.getMetaData().getSrcForAlias(alias);
-          LOG.info("table name: " + tab.getName());
+          if (tab != null)
+            LOG.info("table name: " + tab.getName());
 
           if (tab == null) {
             throw new SemanticException(
@@ -4010,7 +4038,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     if (ss == null)
       return cmd;
 
-    if (ss.getConf().get("mapred.job.tracker", "local").equals("local")) {
+    if(ShimLoader.getHadoopShims().isLocalMode(ss.getConf())){
       Set<String> files = ss
           .list_resource(SessionState.ResourceType.FILE, null);
       if ((files != null) && !files.isEmpty()) {
@@ -8581,10 +8609,22 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           col.getTabAlias(), col.getIsPartitionCol()));
       columnNames.add(col.getInternalName());
     }
+    
     Operator output = putOpInsertMap(OperatorFactory.getAndMakeChild(
         new selectDesc(colList, columnNames, true),
         new RowSchema(inputRR.getColumnInfos()), input), inputRR);
-    output.setColumnExprMap(input.getColumnExprMap());
+    
+    if (input.getColumnExprMap() == null || input.getColumnExprMap().size() == 0)
+      output.setColumnExprMap(input.getColumnExprMap());
+    else {
+      Map<String, exprNodeDesc> colExprMap = new HashMap<String, exprNodeDesc>();
+      for (int i=0; i < colList.size(); i++) {
+        String outputCol = getColumnInternalName(i);
+        colExprMap.put(outputCol, colList.get(i));
+      }
+      output.setColumnExprMap(colExprMap);
+    }
+    
     return output;
   }
 
@@ -9743,24 +9783,26 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
 
       boolean colsEqual = true;
-      if ((sampleExprs.size() != tabBucketCols.size())
-          && (sampleExprs.size() != 0)) {
+      if ((sampleExprs != null) && (tabBucketCols != null) && 
+          (sampleExprs.size() != tabBucketCols.size()) && (sampleExprs.size() != 0)) {
         colsEqual = false;
       }
 
-      for (int i = 0; i < sampleExprs.size() && colsEqual; i++) {
-        boolean colFound = false;
-        for (int j = 0; j < tabBucketCols.size() && !colFound; j++) {
-          if (sampleExprs.get(i).getToken().getType() != HiveParser.TOK_TABLE_OR_COL) {
-            break;
+      if (sampleExprs != null) {
+        for (int i = 0; i < sampleExprs.size() && colsEqual; i++) {
+          boolean colFound = false;
+          for (int j = 0; j < tabBucketCols.size() && !colFound; j++) {
+            if (sampleExprs.get(i).getToken().getType() != HiveParser.TOK_TABLE_OR_COL) {
+              break;
+            }
+  
+            if (((ASTNode) sampleExprs.get(i).getChild(0)).getText()
+                .equalsIgnoreCase(tabBucketCols.get(j))) {
+              colFound = true;
+            }
           }
-
-          if (((ASTNode) sampleExprs.get(i).getChild(0)).getText()
-              .equalsIgnoreCase(tabBucketCols.get(j))) {
-            colFound = true;
-          }
+          colsEqual = (colsEqual && colFound);
         }
-        colsEqual = (colsEqual && colFound);
       }
 
       ts.setInputPruning((sampleExprs == null || sampleExprs.size() == 0 || colsEqual));
@@ -11110,118 +11152,6 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     return pardesc;
 
   }
-  
-  public void closeStatement(Statement stmt){
-    try{
-      stmt.close();
-    }
-    catch(Exception x){
-      
-    }
-  }
-  
-  public void closeConnection(Connection con){
-    try{
-      con.close();
-    }
-    catch(Exception x){
-      
-    }
-  }
-  
-  private String downloadjar(String DBName, String tableName)
-      throws SemanticException {
-    LOG.info("download jar of " + DBName + "::" + tableName);
-    String newPath = null;
-    String modified_time = null;
-    String jarName = null;
-
-    String url = conf.get("hive.metastore.pbjar.url",
-        "jdbc:postgresql://10.136.130.102:5432/pbjar");
-    String user = conf.get("hive.metastore.user", "tdw");
-    String passwd = conf.get("hive.metastore.passwd", "tdw");
-    String protoVersion = conf.get("hive.protobuf.version", "2.3.0");
-    
-    LOG.info("####################################protobuf version = " + protoVersion);
-
-    String driver = "org.postgresql.Driver";
-    ResultSet rs = null;
-    Connection connect = null;
-    PreparedStatement ps = null;
-    try {
-      Class.forName(driver).newInstance();
-    } catch (Exception e2) {
-      e2.printStackTrace();
-      throw new SemanticException(e2.getMessage());
-    } 
-    
-    try {
-      connect = DriverManager.getConnection(url, user, passwd);
-
-      String processName = java.lang.management.ManagementFactory
-          .getRuntimeMXBean().getName();
-      String processID = processName.substring(0, processName.indexOf('@'));
-      String appinfo = "downloadjar_" + processID + "_"
-          + SessionState.get().getSessionName();
-      connect.setClientInfo("ApplicationName", appinfo);
-     
-      ps = connect
-        .prepareStatement("SELECT to_char(modified_time,'yyyymmddhh24miss') as modified_time, "
-        + "jar_file FROM pb_proto_jar WHERE db_name=? and tbl_name=? and protobuf_version=? order by modified_time desc limit 1");
-      ps.setString(1, DBName.toLowerCase());
-      ps.setString(2, tableName.toLowerCase());
-      ps.setString(3, protoVersion);
-      
-      rs = ps.executeQuery();
-      
-      byte[] fileBytes = new byte[16 * 1024 * 1024];
-      if (rs.next()) {
-        modified_time = rs.getString("modified_time");
-        jarName = DBName.toLowerCase() + "_" + tableName.toLowerCase() + "_"
-            + modified_time + ".jar";
-        newPath = "./auxlib/" + jarName;
-        File file = new File(newPath);
-       
-        if (!file.exists()) {
-        	//in case of auxlib do not exist,e.g test env
-        	file.getParentFile().mkdirs();
-          if (!file.createNewFile()){
-            LOG.error("Try to create file " + newPath + " failed.");
-            throw new SemanticException("Try to create file " + newPath + " failed.");
-          }
-             
-          FileOutputStream outputStream = null;
-          try{
-            outputStream = new FileOutputStream(file);
-            InputStream iStream = rs.getBinaryStream("jar_file");
-            int size = 0;
-
-            while ((size = iStream.read(fileBytes)) != -1) {
-              System.out.println(size);
-              outputStream.write(fileBytes, 0, size);
-            }
-          }
-          finally{
-            outputStream.close();
-          }         
-        } else {
-          LOG.info("The jar file of " + jarName + " is the latest version.");
-        }
-      } else {
-        LOG.error("Can not find the jar file of " + jarName + " in the tPG.");
-        throw new SemanticException("Can not find the jar file of " + jarName + " in the tPG.");
-      }     
-    } catch (Exception e2) {
-      e2.printStackTrace();
-      throw new SemanticException(e2.getMessage());
-    }
-    finally{
-      closeStatement(ps);
-      closeConnection(connect);
-    }
-    
-    return modified_time;
-  }
 
   private List<FieldSchema> getColsFromJar(String msgName)
       throws SemanticException {
@@ -11230,12 +11160,12 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     String modified_time = null;
     LOG.debug("dbName: " + SessionState.get().getDbName().toLowerCase());
     LOG.debug("tableName: " + msgName.toLowerCase());
-    modified_time = downloadjar(SessionState.get().getDbName().toLowerCase(),
-        msgName.toLowerCase());
+    modified_time = PBJarTool.downloadjar(SessionState.get().getDbName().toLowerCase(),
+        msgName.toLowerCase(), conf);
 
     pb_msg_outer_name = SessionState.get().getDbName().toLowerCase() + "_"
         + msgName + "_" + modified_time;
-    String full_name = protobufPackageName + "." + pb_msg_outer_name + "$"
+    String full_name = PBJarTool.protobufPackageName + "." + pb_msg_outer_name + "$"
         + msgName;
     Descriptor message;
     String jar_path = "./auxlib/" + pb_msg_outer_name + ".jar";
@@ -12562,14 +12492,18 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
     getAllTableName(qb);
 
-    if (allTableMap.isEmpty()) {
+    if (allTableMap != null && allTableMap.isEmpty()) {
       isAllDBExternalTable = false;
       LOG.info("table alias is empty");
     }
 
     if (SessionState.get() != null)
       multiHdfsInfo.setQueryid(SessionState.get().getQueryId());
-    if (!allTableMap.isEmpty()) {
+    
+    //ArrayList<String> dblList = new ArrayList<String>(allTableMap.keySet());
+    //boolean insertdir = false;
+    
+    if (allTableMap != null && !allTableMap.isEmpty()) {
       try {
         ArrayList<String> dblList = new ArrayList<String>(allTableMap.keySet());
         String db_name = null;
@@ -12609,37 +12543,39 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
     HashMap<String, Table> extTbl = new HashMap<String, Table>();
     HashMap<String, String> tableNameMap = new HashMap<String, String>();
-    for (Entry<String, Table> entry : allTableMap.entrySet()) {
-      String tab_name = entry.getKey();
-      Table tab = entry.getValue();
-
-      String tableServer = tab.getSerdeParam(Constants.TABLE_SERVER);
-      String dbType = tab.getSerdeParam(Constants.DB_TYPE);
-      String tableName = tab.getSerdeParam(Constants.TABLE_NAME);
-      String tableSql = tab.getSerdeParam(Constants.TBALE_SQL);
-      LOG.debug("++++++++++++++" + tableServer);
-      LOG.debug("tableName: " + tableName);
-
-      if (tableServer != null
-          && !tableServer.isEmpty()
-          && (dbType.equalsIgnoreCase("pgsql") || dbType.equalsIgnoreCase("pg"))) {
-        if (tableName == null || tableName.isEmpty()) {
-          if (tableSql.isEmpty() || tableSql == null) {
-            LOG.info("Both table name and table sql missed");
-            isAllDBExternalTable = false;
-            break;
-          } else {
-            LOG.info("table name missed, cannot push down to pg");
-            isAllDBExternalTable = false;
-            break;
+    if (allTableMap != null) {
+      for (Entry<String, Table> entry : allTableMap.entrySet()) {
+        String tab_name = entry.getKey();
+        Table tab = entry.getValue();
+  
+        String tableServer = tab.getSerdeParam(Constants.TABLE_SERVER);
+        String dbType = tab.getSerdeParam(Constants.DB_TYPE);
+        String tableName = tab.getSerdeParam(Constants.TABLE_NAME);
+        String tableSql = tab.getSerdeParam(Constants.TBALE_SQL);
+        LOG.debug("++++++++++++++" + tableServer);
+        LOG.debug("tableName: " + tableName);
+  
+        if (tableServer != null
+            && !tableServer.isEmpty()
+            && (dbType.equalsIgnoreCase("pgsql") || dbType.equalsIgnoreCase("pg"))) {
+          if (tableName == null || tableName.isEmpty()) {
+            if (tableSql != null && tableSql.isEmpty() || tableSql == null) {
+              LOG.info("Both table name and table sql missed");
+              isAllDBExternalTable = false;
+              break;
+            } else {
+              LOG.info("table name missed, cannot push down to pg");
+              isAllDBExternalTable = false;
+              break;
+            }
           }
+          tableNameMap.put(tab_name, tableName);
+          extTbl.put(tab_name, tab);
+          continue;
+        } else {
+          isAllDBExternalTable = false;
+          break;
         }
-        tableNameMap.put(tab_name, tableName);
-        extTbl.put(tab_name, tab);
-        continue;
-      } else {
-        isAllDBExternalTable = false;
-        break;
       }
     }
 
@@ -12647,7 +12583,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       isAllDBExternalTable = false;
     }
 
-    if (isAllDBExternalTable && !allTableMap.isEmpty()) {
+    if (isAllDBExternalTable && allTableMap != null && !allTableMap.isEmpty()) {
       SqlCondPushDown sqlCond = new SqlCondPushDown(extTbl, tableNameMap);
       String tdwSql = ctx.getTokenRewriteStream().toString(
           this.ast.getTokenStartIndex(), this.ast.getTokenStopIndex());
@@ -12663,7 +12599,13 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       config.setFilePath(filePath);
 
       Properties p = conf.getAllProperties();
-      String hdfsDefalutName = p.getProperty("fs.default.name");
+
+      
+      String hdfsDefalutName = p.getProperty("fs.defaultFS");
+      if(hdfsDefalutName == null){
+        hdfsDefalutName = p.getProperty("fs.default.name");
+      }
+      
 
       pgTmpDir = hdfsDefalutName + filePath;
 
@@ -12725,6 +12667,27 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
     LOG.info(conf.getVar(HiveConf.ConfVars.HIVEQUERYID) + "start getting MetaData in Semantic Analysis");
     getMetaData(qb);
+	
+    if(!multiHdfsInfo.isMultiHdfsEnable()){
+      boolean isAllTableOnDefaultHdfs = checkAllTableOnDefaultHdfs(allTableMap);
+      if(isAllTableOnDefaultHdfs){
+        //LOG.info("all table on the default hdfs");
+        //try
+        //{
+        //  if (!insertdir) {
+        //    multiHdfsInfo.checkMultiHdfsEnable(dblList);
+        //  }
+        //} catch (MetaException e) {
+        //  throw new SemanticException("check multi hdfs enable error:"
+        //      + e.getMessage());
+        //}
+      }
+      else{
+        LOG.info("not all table on the default hdfs");
+        multiHdfsInfo.setMultiHdfsEnable(!isAllTableOnDefaultHdfs);
+      }   
+    }
+	
     LOG.info(conf.getVar(HiveConf.ConfVars.HIVEQUERYID) + "Completed getting MetaData in Semantic Analysis");
     if (SessionState.get() != null)
       SessionState.get().ssLog(
@@ -12813,6 +12776,32 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     return;
   }
 
+  
+  private boolean checkAllTableOnDefaultHdfs(Map<String, Table> tableMap){
+    String defaultSchema = multiHdfsInfo.getDefaultNNSchema();
+    LOG.info("defaultSchema=" + defaultSchema);
+    if(defaultSchema == null){
+      return false;
+    }
+    
+    for(Entry<String, Table> e:tableMap.entrySet()){
+      if(e.getValue() != null){
+        Table t = e.getValue();
+        URI location = t.getDataLocation();
+        if(location == null){
+          continue;
+        }
+        else{
+          String tblPath = location.toString();
+          if(tblPath != null && !tblPath.startsWith(defaultSchema)){
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+  
   private void checkdividezero(ASTNode ast) {
     if ("/".equalsIgnoreCase(ast.getText())) {
       ast.token.setText("//");

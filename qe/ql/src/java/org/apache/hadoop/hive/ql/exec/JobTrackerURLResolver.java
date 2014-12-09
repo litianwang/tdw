@@ -21,24 +21,32 @@ package org.apache.hadoop.hive.ql.exec;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobTracker;
 import org.apache.hadoop.net.NetUtils;
 
 public final class JobTrackerURLResolver {
   public static String getURL(JobConf conf) throws IOException {
-    String infoAddr = conf.get("mapred.job.tracker.http.address");
+//  String infoAddr = conf.get("mapred.job.tracker.http.address");
+  String infoAddr = ShimLoader.getHadoopShims().getJobLauncherHttpAddress(conf);
     if (infoAddr == null) {
       throw new IOException("Unable to find job tracker info port.");
     }
     InetSocketAddress infoSocAddr = NetUtils.createSocketAddr(infoAddr);
     int infoPort = infoSocAddr.getPort();
 
-    String tracker = "http://" + JobTracker.getAddress(conf).getHostName()
+  String jobTrackerStr =
+      ShimLoader.getHadoopShims().getJobLauncherRpcAddress(conf);
+    InetSocketAddress jobTrackerSocAddr =
+      NetUtils.createSocketAddr(jobTrackerStr);
+
+  String tracker = "http://" + jobTrackerSocAddr.getHostName()
         + ":" + infoPort;
 
     return tracker;
   }
+
 
   private JobTrackerURLResolver() {
   }

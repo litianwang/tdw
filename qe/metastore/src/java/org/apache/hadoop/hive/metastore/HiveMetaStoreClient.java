@@ -1265,6 +1265,11 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
       MetaException, TException {
     return client.createDatabase(name, location_uri, hdfsscheme, metastore);
   }
+  
+  public boolean hasAuthOnLocation(String who, String location)
+      throws MetaException, TException {
+    return client.hasAuthOnLocation(who, location);
+  }
 
   public boolean hasAuth(String who, int privIndex)
       throws NoSuchObjectException, MetaException, TException {

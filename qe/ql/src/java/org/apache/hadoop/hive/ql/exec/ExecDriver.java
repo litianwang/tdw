@@ -26,6 +26,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Map.Entry;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.URLDecoder;
@@ -57,8 +58,10 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.tdw_query_stat;
 import org.apache.hadoop.hive.metastore.api.tdw_sys_fields_statistics;
 import org.apache.hadoop.hive.ql.DriverContext;
+//import org.apache.hadoop.hive.ql.plan.Operator;
 import org.apache.hadoop.hive.ql.plan.exprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.histogramDesc;
+import org.apache.hadoop.hive.ql.plan.mapredLocalWork;
 import org.apache.hadoop.hive.ql.plan.mapredWork;
 import org.apache.hadoop.hive.ql.plan.exprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.partitionDesc;
@@ -73,6 +76,7 @@ import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator.FileSinkCount;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator.RecordWriter;
 import org.apache.hadoop.hive.ql.exec.MapOperator.Counter;
+import org.apache.hadoop.hive.ql.exec.PartitionerOperator;
 import org.apache.hadoop.hive.ql.exec.PartitionerOperator.PartitionFileSinkCount;
 import org.apache.hadoop.hive.ql.history.HiveHistory.Keys;
 import org.apache.hadoop.hive.ql.io.*;
@@ -250,12 +254,12 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
   }
 
   public void jobInfo(RunningJob rj) {
-    if (job.get("mapred.job.tracker", "local").equals("local")) {
+    if (ShimLoader.getHadoopShims().isLocalMode(job))  {
       console.printInfo("Job running in-process (local Hadoop)");
       if (SessionState.get() != null)
         SessionState.get().ssLog("Job running in-process (local Hadoop)");
     } else {
-      String hp = job.get("mapred.job.tracker");
+      String hp = ShimLoader.getHadoopShims().getJobTrackerConf(job);
       if (SessionState.get() != null) {
         SessionState
             .get()
@@ -384,7 +388,7 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
         }
         
         if(badfilecount > 0){
-        	if (SessionState.get() != null && (!(SessionState.get().getiscli()))) {
+        	if (SessionState.get() != null /*&& (!(SessionState.get().getiscli()))*/) {
         	    SessionState ss = SessionState.get();
         	    if (this.getIndex() >= 0 && ss.getTdw_query_info() != null) {
     	            Connection cc = null;
@@ -838,6 +842,44 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
     }
 
     try {
+      boolean adjustResource = job.getBoolean(HiveConf.ConfVars.HIVE_ADJUST_RESOURCE_ENABLE.varname, 
+          HiveConf.ConfVars.HIVE_ADJUST_RESOURCE_ENABLE.defaultBoolVal);
+      if(adjustResource){
+        
+        String javaMapOpts = job.get(HiveConf.ConfVars.HIVE_MAP_CHILD_JAVA_OPTS.varname, 
+            HiveConf.ConfVars.HIVE_MAP_CHILD_JAVA_OPTS.defaultVal);
+        //String javaReduceOpts = job.get(HiveConf.ConfVars.HIVE_REDUCE_CHILD_JAVA_OPTS.varname, 
+        //    HiveConf.ConfVars.HIVE_REDUCE_CHILD_JAVA_OPTS.defaultVal);
+        int simpleMapMemoryInMB = job.getInt(HiveConf.ConfVars.HIVE_SIMPLE_MAP_MEMORY_INMB.varname, 
+            HiveConf.ConfVars.HIVE_SIMPLE_MAP_MEMORY_INMB.defaultIntVal);
+        int adjustMemoryMb = job.getInt(HiveConf.ConfVars.HIVE_ADJUST_MEMORY_VARIATION_INMB.varname,
+            HiveConf.ConfVars.HIVE_ADJUST_MEMORY_VARIATION_INMB.defaultIntVal);
+        int simpleMapContainerMemoryInMB = job.getInt(HiveConf.ConfVars.HIVE_SIMPLE_MAP_CONTAINER_MEMORY_INMB.varname, 
+            HiveConf.ConfVars.HIVE_SIMPLE_MAP_CONTAINER_MEMORY_INMB.defaultIntVal);
+  
+        LOG.info("XXjavaMapOpts=" + javaMapOpts);
+        //SessionState.get().ssLog("XXjavaMapOpts=" + javaMapOpts);
+        LOG.info("XXsimpleMapMemoryInMB=" + simpleMapMemoryInMB);
+        //SessionState.get().ssLog("XXsimpleMapMemoryInMB=" + simpleMapMemoryInMB);
+        LOG.info("XXsimpleMapContainerMemoryInMB=" + simpleMapContainerMemoryInMB);
+        //SessionState.get().ssLog("XXsimpleMapContainerMemoryInMB=" + simpleMapContainerMemoryInMB);
+        
+        boolean isContainComplexOp = containComplexOpInMap(work);
+        if(!isContainComplexOp){
+          try{
+            String newMapOpts = adjustHeapSizeFromOpts(javaMapOpts, simpleMapMemoryInMB);
+            if(newMapOpts != null){
+              job.set(HiveConf.ConfVars.HIVE_MAP_CHILD_JAVA_OPTS.varname, newMapOpts);
+              job.setInt("mapreduce.map.memory.mb", simpleMapContainerMemoryInMB);
+            }
+          }
+          catch(Exception x){
+            LOG.warn("XXXadjust memory failed, as hive.simple.map.opts is not right set");
+            SessionState.get().ssLog("XXXadjust memory failed, as hive.simple.map.opts is not raightlly set");
+          }         
+        }
+      }
+
       addInputPaths(job, work, emptyScratchDirStr);
       Utilities.setMapRedWork(job, work);
       if (SessionState.get() != null)
@@ -980,7 +1022,7 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
 
         }
 
-        if ((!(ss.getiscli())) && this.getIndex() >= 0
+        if (/*(!(ss.getiscli())) &&*/ this.getIndex() >= 0
             && ss.getTdw_query_info() != null) {
           boolean test_1 = SessionState.updateRunningJob(ss.getTdw_query_info()
               .getQueryId(), rj);
@@ -990,17 +1032,6 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
               .getQueryId(), this.getIndex(), rj.getJobID(), stime, "",
               "running", job.getNumMapTasks(), job.getNumReduceTasks(),
               getHostfromURL(rj.getTrackingURL()));
-          try {
-            collectisok = db.add_tdw_query_stat(tmpstat);
-          } catch (Exception e) {
-            collectisok = false;
-            e.printStackTrace();
-          }
-
-          if (!collectisok) {
-            LOG.info("add_tdw_query_stat failed: "
-                + ss.getCurrnetQueryId());
-          }
           Connection cc = null;
           try {
             if (SessionState.get().getBIStore() != null) {
@@ -1131,7 +1162,7 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
       returnVal = 1;
     } finally {
 
-      if (SessionState.get() != null && (!(SessionState.get().getiscli()))) {
+      if (SessionState.get() != null /*&& (!(SessionState.get().getiscli()))*/) {
         GregorianCalendar gcc = new GregorianCalendar();
         String etime = String.format("%1$4d%2$02d%3$02d%4$02d%5$02d%6$02d",
             gcc.get(Calendar.YEAR), gcc.get(Calendar.MONTH) + 1,
@@ -1141,19 +1172,6 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
         if (this.getIndex() >= 0 && ss.getTdw_query_info() != null) {
           boolean cre = SessionState.clearQeury(ss.getTdw_query_info()
               .getQueryId());
-          try {
-            if (collectisok) {
-              collectisok = db.update_tdw_query_stat(ss.getTdw_query_info()
-                  .getQueryId(), etime, String.valueOf(this.getIndex()));
-            }
-          } catch (Exception e) {
-            collectisok = false;
-            e.printStackTrace();
-          }
-          if (!collectisok) {
-            LOG.info("update_tdw_query_stat failed: "
-                + ss.getTdw_query_info().getQueryId());
-          }
 
           Connection cc = null;
           try {
@@ -1238,6 +1256,14 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
     return (returnVal);
   }
 
+  private String adjustHeapSizeFromOpts(String mapOpts, int mb) {
+    // TODO Auto-generated method stub
+    if(mapOpts == null || mb < 0){
+      return null;
+    }
+    return mapOpts.replaceAll("\\-Xmx[0-9]+[G|g|M|m]{1}", "-Xmx" + mb + "M");
+  }
+
   private static void printUsage() {
     System.out
         .println("ExecDriver -plan <plan-file> [-jobconf k1=v1 [-jobconf k2=v2] ...] "
@@ -1308,8 +1334,7 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
       pathData = fs.open(new Path(planFileName));
     }
 
-    boolean localMode = HiveConf.getVar(conf, HiveConf.ConfVars.HADOOPJT)
-        .equals("local");
+    boolean localMode = ShimLoader.getHadoopShims().isLocalMode(conf);
     if (localMode) {
       String auxJars = HiveConf.getVar(conf, HiveConf.ConfVars.HIVEAUXJARS);
       String addedJars = HiveConf.getVar(conf, HiveConf.ConfVars.HIVEADDEDJARS);
@@ -1343,8 +1368,7 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
     try {
       StringBuilder sb = new StringBuilder();
       Properties deltaP = hconf.getChangedProperties();
-      boolean localMode = hconf.getVar(HiveConf.ConfVars.HADOOPJT).equals(
-          "local");
+      boolean localMode = ShimLoader.getHadoopShims().isLocalMode(hconf);
       String hadoopSysDir = "mapred.system.dir";
       String hadoopWorkDir = "mapred.local.dir";
 
@@ -1645,6 +1669,45 @@ public class ExecDriver extends Task<mapredWork> implements Serializable {
 
     return;
 
+  }
+
+  public boolean containComplexOpInMap(Operator op){
+    LOG.info("XXXXXXXXXXXXXXXXXXXop type=" + op.getClass().getName());
+    if(op instanceof GroupByOperator){
+      return true;
+    }
+    if(op instanceof PartitionerOperator){
+      return true;
+    }
+    if(op instanceof MapJoinOperator){
+      return true;
+    }
+    
+    List<Operator> oplist = op.getChildOperators();
+    boolean ret = false;
+    if(oplist != null){
+      for(Operator o:oplist){
+        ret = containComplexOpInMap(o);
+        if(ret){
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+  
+  public boolean containComplexOpInMap(mapredWork work){
+    LinkedHashMap<String, Operator<? extends Serializable>> mapTaskList = work.getAliasToWork();
+    for(Entry<String, Operator<? extends Serializable>> e:mapTaskList.entrySet()){
+      Operator op = e.getValue();
+      boolean ret = containComplexOpInMap(op);
+      if(ret){
+        return true;
+      }
+    }
+
+    return false;
   }
 
   @Override

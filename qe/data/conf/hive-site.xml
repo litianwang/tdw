@@ -17,6 +17,12 @@
 </property>
 
 <property>
+  <name>mapreduce.job.max.split.locations</name>
+  <value>1000</value>
+  <description>need for hadoop 2.x</description>
+</property>
+
+<property>
   <name>hive.exec.scratchdir</name>
   <value>${user.dir}/../build/ql/tmp</value>
   <description>Scratch space for Hive jobs</description>
@@ -98,13 +104,13 @@
 
 <property>
   <name>hive.pgdata.storage.url</name>
-  <value>127.0.0.1:5432/tdw</value>
+  <value>127.0.0.1:5432/tdw_query_info</value>
   <description>pg server, port and database name,used for pgdata table</description>
 </property>
 
 <property>
   <name>hive.query.info.log.url</name>
-  <value>jdbc:postgresql://127.0.0.1:5432/tdw</value>
+  <value>jdbc:postgresql://127.0.0.1:5432/tdw_query_info</value>
   <description>send hive query info to this PG database</description>
 </property>
 

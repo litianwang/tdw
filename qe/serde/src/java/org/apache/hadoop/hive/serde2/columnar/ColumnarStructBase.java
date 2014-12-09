@@ -58,6 +58,7 @@ public abstract class ColumnarStructBase implements SerDeStatsStruct {
       if (col != null) {
         rawBytesField = col;
         inited = false;
+        fieldSkipped = false;
       } else {
         fieldSkipped = true;
       }

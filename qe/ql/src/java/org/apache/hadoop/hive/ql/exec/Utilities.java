@@ -60,6 +60,7 @@ import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -129,7 +130,9 @@ public class Utilities {
       }
 
       if (gWork == null) {
-        String jtConf = HiveConf.getVar(job, HiveConf.ConfVars.HADOOPJT);
+        //String jtConf = HiveConf.getVar(job, HiveConf.ConfVars.HADOOPJT);        
+        String jtConf = ShimLoader.getHadoopShims().getJobLauncherRpcAddress(job);
+        
         String path;
         if (jtConf.equals("local")) {
           path = new Path(planPath).toUri().getPath();
@@ -203,7 +206,10 @@ public class Utilities {
 
       HiveConf.setVar(job, HiveConf.ConfVars.PLAN, planPath.toString());
 
-      if (!HiveConf.getVar(job, HiveConf.ConfVars.HADOOPJT).equals("local")) {
+      if (!HiveConf.getVar(job, HiveConf.ConfVars.HADOOPJT).equals("local") ||
+          !job.get("mapreduce.framework.name", "local").equals("local")) {
+          LOG.info("jobid : " + ((JobConf)job).getJobName() + " setMapRedWord : planPath :" + planPath.toString());
+      //if (!HiveConf.getVar(job, HiveConf.ConfVars.HADOOPJT).equals("local")) {
 
         DistributedCache.createSymlink(job);
         String uriWithLink = planPath.toUri().toString() + "#HIVE_PLAN"
@@ -627,7 +633,6 @@ public class Utilities {
     
    //return toTempPath(new Path(orig));
   }
-
 
   public static Path toFilePath(Path orig, int filenum) {
     return new Path(orig.getParent(), orig.getName() + "_file" + filenum);

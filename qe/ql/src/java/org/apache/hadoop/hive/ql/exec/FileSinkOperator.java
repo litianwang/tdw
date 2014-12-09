@@ -258,7 +258,7 @@ public class FileSinkOperator extends TerminalOperator<fileSinkDesc> implements
       }
 
       int id = conf.getDestTableId();
-      if ((id != 0) && (id <= TableIdEnum.values().length)) {
+      if ((id > 0) && (id <= TableIdEnum.values().length)) {
         String enumName = "TABLE_ID_" + String.valueOf(id) + "_ROWCOUNT";
         tabIdEnum = TableIdEnum.valueOf(enumName);
         row_count = new LongWritable();

@@ -35,6 +35,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.Object
 
 @description(name = "explode", value = "_FUNC_(a) - separates the elements of array a into multiple rows ")
 public class GenericUDTFExplode extends GenericUDTF {
+    
+  public static boolean isChangSizeZero2Null = false;
+  public static boolean isChangNull2Null = false;
 
   ListObjectInspector listOI = null;
   boolean needToConvert = false;
@@ -185,6 +188,10 @@ public class GenericUDTFExplode extends GenericUDTF {
 
     List<?> list = listOI.getList(o[0]);
     if (list == null) {
+      if (isChangNull2Null) {
+        forwardObj[0] = null;
+        this.forward(forwardObj);
+      }
       return;
     }
 
@@ -192,6 +199,9 @@ public class GenericUDTFExplode extends GenericUDTF {
       if (needToConvert)
         o[1] = myconvert.convert(o[1]);
       forwardObj[0] = o[1];
+      this.forward(forwardObj);
+    } else if (list.size() == 0 && isChangSizeZero2Null) {
+      forwardObj[0] = null;
       this.forward(forwardObj);
     }
 

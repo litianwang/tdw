@@ -17,7 +17,7 @@ FROM src
 INSERT OVERWRITE TABLE base64_test
 SELECT key, value WHERE key < 10;
 
-SELECT * FROM base64_test;
+SELECT * FROM base64_test order by key,value;
 
 
 set base64.text.input.format.signature=TFT;
@@ -30,7 +30,7 @@ FROM src
 INSERT OVERWRITE TABLE base64_test
 SELECT key, value WHERE key < 10;
 
-SELECT * FROM base64_test;
+SELECT * FROM base64_test order by key,value;
 
 
 DROP TABLE base64_test;

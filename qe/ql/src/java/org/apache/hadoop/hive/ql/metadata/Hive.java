@@ -64,7 +64,7 @@ import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
-
+import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.JDBCStore.Privilege;
 import org.apache.hadoop.hive.metastore.api.AddSerdeDesc;
@@ -90,7 +90,7 @@ import org.apache.hadoop.hive.metastore.api.group;
 import org.apache.hadoop.hive.metastore.model.Mtdw_query_info;
 import org.apache.hadoop.hive.metastore.model.Mtdw_query_stat;
 import org.apache.hadoop.hive.metastore.Warehouse;
-
+import org.apache.hadoop.hive.ql.PBJarTool;
 import org.apache.hadoop.hive.ql.dataToDB.StoreAsPgdata;
 import org.apache.hadoop.hive.ql.exec.ExecDriver;
 import org.apache.hadoop.hive.ql.exec.Utilities;
@@ -121,7 +121,6 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.StringUtils;
-
 import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
 
@@ -301,6 +300,38 @@ public class Hive {
             tbl.getDeserializer()));
       }
       tbl.checkValidity();
+      
+      if(tbl.getTableType() == TableType.EXTERNAL_TABLE){
+        HiveConf sessionConf = SessionState.get().getConf();
+        if(sessionConf != null){
+          boolean createExtDirIfNotExist = sessionConf.getBoolean(HiveConf.ConfVars.HIVE_CREATE_EXTTABLE_DIR_IFNOTEXIST.varname, 
+              HiveConf.ConfVars.HIVE_CREATE_EXTTABLE_DIR_IFNOTEXIST.defaultBoolVal);
+          LOG.info("XXcreateExtDirIfNotExist=" + createExtDirIfNotExist);
+          if(!createExtDirIfNotExist){
+            Map<String, String> tblParams = tbl.getTTable().getParameters();
+            if(tblParams == null){
+              tblParams = new HashMap<String, String>();
+              tblParams.put(HiveConf.ConfVars.HIVE_CREATE_EXTTABLE_DIR_IFNOTEXIST.varname, "false");
+              tbl.getTTable().setParameters(tblParams);
+            }
+            else{
+              tblParams.put(HiveConf.ConfVars.HIVE_CREATE_EXTTABLE_DIR_IFNOTEXIST.varname, "false");
+            }
+          } 
+        }
+
+        // check whether current user has auth to create external table on the location
+        String location = tbl.getTTable().getSd().getLocation();
+        boolean isAuthLocation = sessionConf.getBoolean(HiveConf.ConfVars.HIVE_CREATE_EXTTABLE_LOCATION_AUTH.varname, 
+            HiveConf.ConfVars.HIVE_CREATE_EXTTABLE_LOCATION_AUTH.defaultBoolVal);
+        if (isAuthLocation && location != null && location.trim().startsWith("hdfs://")) {
+          if (!getMSC().hasAuthOnLocation(SessionState.get().getUserName(), location.trim())) {
+            throw new HiveException("user " + SessionState.get().getUserName() + 
+                " has no privilege to create external table on location: " + location);
+          }
+        }
+      }
+      
       getMSC().createTable(tbl.getTTable());
     } catch (AlreadyExistsException e) {
       if (!ifNotExists) {
@@ -483,124 +514,6 @@ public class Hive {
     return this.getTable(dbName, tableName, true);
   }
 
-  private String downloadjar(String DBName, String tableName)
-      throws HiveException {
-    LOG.info("download jar of " + DBName + "::" + tableName);
-    String newPath = null;
-    String modified_time = null;
-    String jarName = null;
-
-    String url = conf.get("hive.metastore.pbjar.url",
-        "jdbc:postgresql://10.136.130.102:5432/pbjar");
-    String user = conf.get("hive.metastore.user", "tdw");
-    String passwd = conf.get("hive.metastore.passwd", "tdw");
-    String protoVersion = conf.get("hive.protobuf.version", "2.3.0");
-    
-    LOG.info("####################################protobuf version = " + protoVersion);
-
-    String driver = "org.postgresql.Driver";
-    ResultSet rs = null;
-    Connection connect = null;
-    PreparedStatement ps = null;
-    try {
-      Class.forName(driver).newInstance();
-    } catch (InstantiationException e2) {
-      e2.printStackTrace();
-    } catch (IllegalAccessException e2) {
-      e2.printStackTrace();
-    } catch (ClassNotFoundException e2) {
-      e2.printStackTrace();
-    }
-    try {
-      connect = DriverManager.getConnection(url, user, passwd);
-      try {
-        String processName = java.lang.management.ManagementFactory
-            .getRuntimeMXBean().getName();
-        String processID = processName.substring(0, processName.indexOf('@'));
-        String appinfo = "downloadjar_" + processID + "_"
-            + SessionState.get().getSessionName();
-        connect.setClientInfo("ApplicationName", appinfo);
-      } catch (Exception e) {
-        e.printStackTrace();
-      }
-    } catch (SQLException e2) {
-      e2.printStackTrace();
-    }
-    try {
-      ps = connect
-          .prepareStatement("SELECT to_char(modified_time,'yyyymmddhh24miss') as modified_time,jar_file FROM pb_proto_jar WHERE db_name=? and tbl_name=? and protobuf_version=? order by modified_time desc limit 1");
-    } catch (SQLException e1) {
-      e1.printStackTrace();
-    }
-    try {
-      ps.setString(1, DBName.toLowerCase());
-    } catch (SQLException e1) {
-      e1.printStackTrace();
-    }
-    try {
-      ps.setString(2, tableName.toLowerCase());
-    } catch (SQLException e1) {
-      e1.printStackTrace();
-    }
-    try {
-      ps.setString(3, protoVersion.toLowerCase());
-    } catch (SQLException e1) {
-      e1.printStackTrace();
-    }
-    try {
-      rs = ps.executeQuery();
-    } catch (SQLException e1) {
-      e1.printStackTrace();
-    }
-    try {
-      byte[] fileBytes = new byte[16 * 1024 * 1024];
-      if (rs.next()) {
-        modified_time = rs.getString("modified_time");
-        jarName = DBName.toLowerCase() + "_" + tableName.toLowerCase() + "_"
-            + modified_time + ".jar";
-        newPath = "./auxlib/" + jarName;
-        File file = new File(newPath);
-        if (!file.exists()) {
-          try {
-            if (!file.createNewFile())
-              LOG.info("Try to create file " + newPath + " failed.");
-          } catch (IOException e2) {
-            e2.printStackTrace();
-          }
-          FileOutputStream outputStream = null;
-          try {
-            outputStream = new FileOutputStream(file);
-          } catch (FileNotFoundException e) {
-            e.printStackTrace();
-          }
-          InputStream iStream = rs.getBinaryStream("jar_file");
-          int size = 0;
-          try {
-            while ((size = iStream.read(fileBytes)) != -1) {
-              System.out.println(size);
-              outputStream.write(fileBytes, 0, size);
-            }
-          } catch (IOException e) {
-            e.printStackTrace();
-          }
-        } else {
-          LOG.info("The jar file of " + jarName + " is the latest version.");
-        }
-      } else {
-        LOG.info("Can not find the jar file of " + jarName + " in the tPG.");
-      }
-    } catch (SQLException e1) {
-      e1.printStackTrace();
-    }
-    try {
-      rs.close();
-      ps.close();
-    } catch (SQLException e) {
-      e.printStackTrace();
-    }
-    return modified_time;
-  }
-
   public Table cloneTable(org.apache.hadoop.hive.metastore.api.Table oldTTable)
       throws HiveException {
     if (oldTTable == null) {
@@ -612,20 +525,21 @@ public class Hive {
 
     assert (tTable != null);
 
-    String jarPath = tTable.getParameters().get(Constants.PB_JAR_PATH);
-    if (jarPath != null && !jarPath.isEmpty()) {
-      LOG.info("has jarPath,adding..");
-      ClassLoader loader = JavaUtils.getpbClassLoader();
-      URL[] urls = ((URLClassLoader) loader).getURLs();
-      Set<URL> newPath = new HashSet<URL>(Arrays.asList(urls));
-
+    if(PBJarTool.checkIsPbTable(tTable)){
       String dbName = tTable.getDbName();
       String tableName = tTable.getTableName();
       LOG.debug("dbName: " + dbName);
       LOG.debug("tableName: " + tableName);
-      downloadjar(dbName, tableName);
-
-      try {
+      
+      String modifyTime = PBJarTool.downloadjar(dbName.toLowerCase(),tableName.toLowerCase(), conf);
+      String pbOuterClassName = dbName.toLowerCase() + "_" + tableName.toLowerCase() + "_" + modifyTime;     
+      String jarPath = "./auxlib/" + pbOuterClassName + ".jar";
+      
+      LOG.info("has jarPath,adding..");
+      ClassLoader loader = JavaUtils.getpbClassLoader();
+      URL[] urls = ((URLClassLoader) loader).getURLs();
+      Set<URL> newPath = new HashSet<URL>(Arrays.asList(urls));
+      try{
         URL aurl = (new File(jarPath)).toURL();
         if (!newPath.contains(aurl)) {
           String[] jarstrs = new String[1];
@@ -637,9 +551,14 @@ public class Hive {
         } else {
           LOG.info("already has this jar,skip add OK");
         }
-      } catch (Exception e) {
-        throw new HiveException(e.getMessage(), e);
+        
+        tTable.getParameters().put(Constants.PB_OUTER_CLASS_NAME, pbOuterClassName);
+        tTable.getParameters().put(Constants.PB_JAR_PATH, jarPath);
       }
+      catch(Exception x){
+        throw new HiveException(x.getMessage());
+      }
+
     }
 
     try {
@@ -843,19 +762,22 @@ public class Hive {
       throw new HiveException("Unable to fetch table " + tableName, e);
     }
     assert (tTable != null);
-    String jarPath = tTable.getParameters().get(Constants.PB_JAR_PATH);
-    if (jarPath != null && !jarPath.isEmpty()) {
-      LOG.debug("has jarPath,adding..");
-      LOG.info("has jarPath,adding.." + jarPath);
+
+    if(PBJarTool.checkIsPbTable(tTable)){
+      LOG.debug("dbName: " + dbName);
+      LOG.debug("tableName: " + tableName);
+      
+      String modifyTime = PBJarTool.downloadjar(dbName.toLowerCase(),tableName.toLowerCase(), conf);
+      String pbOuterClassName = dbName.toLowerCase() + "_" + tableName.toLowerCase() + "_" + modifyTime;     
+      String jarPath = "./auxlib/" + pbOuterClassName + ".jar";
+      
+      LOG.info("has jarPath,adding..");
       ClassLoader loader = JavaUtils.getpbClassLoader();
       URL[] urls = ((URLClassLoader) loader).getURLs();
       Set<URL> newPath = new HashSet<URL>(Arrays.asList(urls));
-
-      LOG.debug("dbName: " + dbName);
-      LOG.debug("tableName: " + tableName);
-      downloadjar(dbName, tableName);
-
-      try {
+      
+      try
+      {
         URL aurl = (new File(jarPath)).toURL();
         if (!newPath.contains(aurl)) {
           String[] jarstrs = new String[1];
@@ -864,12 +786,15 @@ public class Hive {
           loader = Utilities.addToClassPath(loader, jarstrs);
           JavaUtils.setpbClassLoader(loader);
           LOG.debug("has jarPath,add OK");
-
         } else {
           LOG.info("already has this jar,skip add OK");
         }
-      } catch (Exception e) {
-        throw new HiveException(e.getMessage(), e);
+        
+        tTable.getParameters().put(Constants.PB_OUTER_CLASS_NAME, pbOuterClassName);
+        tTable.getParameters().put(Constants.PB_JAR_PATH, jarPath);
+      }
+      catch(Exception x){
+        throw new HiveException(x.getMessage());
       }
 
     }
@@ -1435,6 +1360,10 @@ public class Hive {
 
   static protected void copyFiles(Path srcf, Path destf, FileSystem fs)
       throws HiveException {
+    if (!checkPathDomain(srcf, fs)) {
+      throw new HiveException("Invalid path: srcf=" + srcf + ", fs=" + (fs==null ? null:fs.getUri()));
+    }
+    
     try {
       if (!fs.exists(destf))
         fs.mkdirs(destf);
@@ -1524,6 +1453,10 @@ public class Hive {
 
   static protected void replaceFiles(Path srcf, Path destf, FileSystem fs,
       Path tmppath) throws HiveException {
+    if (!checkPathDomain(srcf, fs)) {
+      throw new HiveException("Invalid path: srcf=" + srcf + ", fs=" + (fs==null ? null:fs.getUri()));
+    }
+    
     FileStatus[] srcs;
     try {
       srcs = fs.globStatus(srcf);
@@ -5484,4 +5417,31 @@ public class Hive {
     }
     return false;
   }
+  
+  // check if the path is in current FileSystem fs
+  private static boolean checkPathDomain(Path path, FileSystem fs) {
+    if (path == null || fs == null)
+      return false;
+
+    URI pathUri = path.toUri();
+    URI fsUri = fs.getUri();
+    
+    if(pathUri == null || fsUri == null)
+      return true;
+    
+    LOG.debug("scheme " + pathUri.getScheme() + ", " + pathUri.getScheme());
+    LOG.debug("authority " + fsUri.getAuthority() + ", " + fsUri.getAuthority());
+    
+    if (!strEquals(pathUri.getScheme(), "hdfs") || !strEquals(fsUri.getScheme(), "hdfs"))
+      return true;
+    else if (strEquals(pathUri.getAuthority(), fsUri.getAuthority()))
+      return true;
+    else
+      return false;
+  }
+  
+  private static boolean strEquals(String str1, String str2) {
+    return org.apache.commons.lang.StringUtils.equals(str1, str2);
+  }
+  
 };

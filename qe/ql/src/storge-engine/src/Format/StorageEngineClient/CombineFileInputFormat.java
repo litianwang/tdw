@@ -35,6 +35,7 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
+import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
 import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.net.NetworkTopology;
@@ -88,6 +89,10 @@ public abstract class CombineFileInputFormat<K, V> extends
   public CombineFileInputFormat() {
   }
 
+  public String getFileName(Path p){
+    return p.toString();
+  }
+  
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
 
@@ -133,7 +138,14 @@ public abstract class CombineFileInputFormat<K, V> extends
           + minSizeRack);
     }
 
-    Path[] paths = FileUtil.stat2Paths(listStatus(job));
+    FileStatus[] fsStatus = listStatus(job);
+    Path[] paths = FileUtil.stat2Paths(fsStatus);
+    Map<String, FileStatus> fileNameToStatus = new HashMap<String, FileStatus>();
+    int arraySize = fsStatus.length;
+    for(int i = 0; i < arraySize; i++){
+      fileNameToStatus.put(getFileName(paths[i]), fsStatus[i]);
+    }
+    
     List<CombineFileSplit> splits = new ArrayList<CombineFileSplit>();
     if (paths.length == 0) {
       return splits.toArray(new CombineFileSplit[splits.size()]);
@@ -152,7 +164,7 @@ public abstract class CombineFileInputFormat<K, V> extends
           paths[i] = null;
         }
       }
-      getMoreSplits(job, myPaths.toArray(new Path[myPaths.size()]), maxSize,
+      getMoreSplitsWithStatus(job, myPaths.toArray(new Path[myPaths.size()]), fileNameToStatus,  maxSize,
           minSizeNode, minSizeRack, splits);
     }
 
@@ -165,7 +177,7 @@ public abstract class CombineFileInputFormat<K, V> extends
     }
     LOG.debug("myPaths size:\t" + myPaths.size());
     try {
-      getMoreSplits(job, myPaths.toArray(new Path[myPaths.size()]), maxSize,
+      getMoreSplitsWithStatus(job, myPaths.toArray(new Path[myPaths.size()]), fileNameToStatus , maxSize,
           minSizeNode, minSizeRack, splits);
     } catch (NullGzFileException e) {
       throw new IOException(e);
@@ -289,6 +301,120 @@ public abstract class CombineFileInputFormat<K, V> extends
     }
   }
 
+  private void getMoreSplitsWithStatus(JobConf job, Path[] paths1, Map<String, FileStatus> fileNameToStatus,
+      long maxSize,long minSizeNode, long minSizeRack, List<CombineFileSplit> splits)
+      throws IOException, NullGzFileException {
+    if (paths1.length == 0) {
+      return;
+    }
+
+    Path[] paths = paths1;
+    ArrayList<Path> splitable = new ArrayList<Path>();
+    ArrayList<Path> unsplitable = new ArrayList<Path>();
+    for (int i = 0; i < paths1.length; i++) {
+      if (isSplitable(paths1[i].getFileSystem(job), paths1[i])) {
+        splitable.add(paths1[i]);
+      } else {
+        unsplitable.add(paths1[i]);
+      }
+    }
+    if (unsplitable.size() != 0) {
+      paths = new Path[splitable.size()];
+      splitable.toArray(paths);
+    }
+
+    OneFileInfo[] files;
+
+    HashMap<String, List<OneBlockInfo>> rackToBlocks = new HashMap<String, List<OneBlockInfo>>();
+
+    HashMap<OneBlockInfo, String[]> blockToNodes = new HashMap<OneBlockInfo, String[]>();
+
+    HashMap<String, List<OneBlockInfo>> nodeToBlocks = new HashMap<String, List<OneBlockInfo>>();
+
+    files = new OneFileInfo[paths.length];
+
+    long totLength = 0;
+    for (int i = 0; i < paths.length; i++) {
+      files[i] = new OneFileInfo(paths[i], fileNameToStatus.get(paths[i].toString()) , job, rackToBlocks, blockToNodes,
+          nodeToBlocks);
+      totLength += files[i].getLength();
+    }
+
+    for (Iterator<Map.Entry<String, List<OneBlockInfo>>> iter = nodeToBlocks
+        .entrySet().iterator(); iter.hasNext();) {
+
+      Map.Entry<String, List<OneBlockInfo>> onenode = iter.next();
+      this.processsplit(job, onenode, blockToNodes, maxSize, minSizeNode,
+          minSizeRack, splits, "node");
+    }
+
+    for (Iterator<Map.Entry<String, List<OneBlockInfo>>> iter = rackToBlocks
+        .entrySet().iterator(); iter.hasNext();) {
+
+      Map.Entry<String, List<OneBlockInfo>> onerack = iter.next();
+      this.processsplit(job, onerack, blockToNodes, maxSize, minSizeNode,
+          minSizeRack, splits, "rack");
+    }
+
+    this.processsplit(job, null, blockToNodes, maxSize, minSizeNode,
+        minSizeRack, splits, "all");
+
+    int maxFileNumPerSplit = job.getInt(
+        "hive.merge.inputfiles.maxFileNumPerSplit", 1000);
+
+    HashSet<OneBlockInfo> hs = new HashSet<OneBlockInfo>();
+    while (blockToNodes.size() > 0) {
+      ArrayList<OneBlockInfo> validBlocks = new ArrayList<OneBlockInfo>();
+      List<String> nodes = new ArrayList<String>();
+      int filenum = 0;
+      hs.clear();
+      for (OneBlockInfo blockInfo : blockToNodes.keySet()) {
+        validBlocks.add(blockInfo);
+        filenum++;
+        for (String host : blockInfo.hosts) {
+          nodes.add(host);
+        }
+        hs.add(blockInfo);
+        if (filenum >= maxFileNumPerSplit) {
+          break;
+        }
+      }
+      for (OneBlockInfo blockInfo : hs) {
+        blockToNodes.remove(blockInfo);
+      }
+      this.addCreatedSplit(job, splits, nodes, validBlocks);
+    }
+
+    if (unsplitable.size() != 0) {
+
+      HashMap<OneBlockInfo, String[]> fileToNodes = new HashMap<OneBlockInfo, String[]>();
+
+      for (Path path : unsplitable) {
+        FileSystem fs = path.getFileSystem(job);
+        FileStatus stat = fileNameToStatus.get(path.toString());//fs.getFileStatus(path);
+        long len = stat.getLen();
+        BlockLocation[] locations = fs.getFileBlockLocations(stat, 0, len);
+        if (locations.length == 0) {
+          console.printError("The file " + path.toUri().toString()
+              + " maybe is empty, please check it!");
+          throw new NullGzFileException("The file " + path.toUri().toString()
+              + " maybe is empty, please check it!");
+        }
+
+        LOG.info("unsplitable file:" + path.toUri().toString() + " length:"
+            + len);
+
+        OneBlockInfo oneblock = new OneBlockInfo(path, 0, len,
+            locations[0].getHosts(), locations[0].getTopologyPaths());
+        fileToNodes.put(oneblock, locations[0].getHosts());
+      }
+
+      this.processsplitForUnsplit(job, null, fileToNodes, maxSize, minSizeNode,
+          minSizeRack, splits, "all");
+    }
+  }
+
+  
   private void processsplit(JobConf job,
       Map.Entry<String, List<OneBlockInfo>> one,
       HashMap<OneBlockInfo, String[]> blockToNodes, long maxSize,
@@ -600,6 +726,53 @@ public abstract class CombineFileInputFormat<K, V> extends
     private long fileSize;
     private OneBlockInfo[] blocks;
 
+    OneFileInfo(Path path, FileStatus stat, JobConf job,
+        HashMap<String, List<OneBlockInfo>> rackToBlocks,
+        HashMap<OneBlockInfo, String[]> blockToNodes,
+        HashMap<String, List<OneBlockInfo>> nodeToBlocks) throws IOException {
+      this.fileSize = 0;
+
+      FileSystem fs = path.getFileSystem(job);
+      //FileStatus stat = fs.getFileStatus(path);
+      BlockLocation[] locations = fs.getFileBlockLocations(stat, 0,
+          stat.getLen());
+      if (locations == null) {
+        blocks = new OneBlockInfo[0];
+      } else {
+        blocks = new OneBlockInfo[locations.length];
+        for (int i = 0; i < locations.length; i++) {
+
+          fileSize += locations[i].getLength();
+          OneBlockInfo oneblock = new OneBlockInfo(path,
+              locations[i].getOffset(), locations[i].getLength(),
+              locations[i].getHosts(), locations[i].getTopologyPaths());
+          blocks[i] = oneblock;
+
+          blockToNodes.put(oneblock, oneblock.hosts);
+
+          for (int j = 0; j < oneblock.racks.length; j++) {
+            String rack = oneblock.racks[j];
+            List<OneBlockInfo> blklist = rackToBlocks.get(rack);
+            if (blklist == null) {
+              blklist = new ArrayList<OneBlockInfo>();
+              rackToBlocks.put(rack, blklist);
+            }
+            blklist.add(oneblock);
+          }
+
+          for (int j = 0; j < oneblock.hosts.length; j++) {
+            String node = oneblock.hosts[j];
+            List<OneBlockInfo> blklist = nodeToBlocks.get(node);
+            if (blklist == null) {
+              blklist = new ArrayList<OneBlockInfo>();
+              nodeToBlocks.put(node, blklist);
+            }
+            blklist.add(oneblock);
+          }
+        }
+      }
+    }
+    
     OneFileInfo(Path path, JobConf job,
         HashMap<String, List<OneBlockInfo>> rackToBlocks,
         HashMap<OneBlockInfo, String[]> blockToNodes,

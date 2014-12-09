@@ -212,6 +212,8 @@ public class DMLSemanticAnalyzer extends BaseSemanticAnalyzer {
     else
       collect.addAll(mapredwork.getAliasToWork().values());
 
+    FileSinkOperator fsop = null;
+    
     for (Operator<? extends Serializable> op : collect) {
       Operator<? extends Serializable> children;
 
@@ -219,7 +221,7 @@ public class DMLSemanticAnalyzer extends BaseSemanticAnalyzer {
         op = children;
 
         if (op.getName().equals("FS")) {
-          FileSinkOperator fsop = (FileSinkOperator) op;
+          fsop = (FileSinkOperator) op;
           Table dest_tab = null;
 
           try {
@@ -318,6 +320,17 @@ public class DMLSemanticAnalyzer extends BaseSemanticAnalyzer {
     LOG.info("Origin select result location:" + tmp_dir);
 
     DeleteWork delete = null;
+
+    String tblAuthority = getAuthorityFromPathUrl(location);
+    String tmpAuthotity = getAuthorityFromPathUrl(tmp_dir);
+    if (tblAuthority == null || tmpAuthotity == null)
+      throw new SemanticException("Invalid table location");
+    if (!tblAuthority.equals(tmpAuthotity)) {
+      tmp_dir = tblAuthority + tmp_dir.substring(tmpAuthotity.length());
+      if (fsop != null) {
+        fsop.getConf().setDirName(tmp_dir);
+      }
+    }
 
     delete = new DeleteWork(new deleteTableDesc(db_name, table_name, location,
         tmp_dir));
@@ -539,6 +552,15 @@ public class DMLSemanticAnalyzer extends BaseSemanticAnalyzer {
     default:
       return;
     }
+  }
+  
+  private String getAuthorityFromPathUrl(String path) {
+    int start = path.indexOf("//");
+    int end = path.indexOf("/", start+2);
+    if (start == -1 || end == -1)
+      return null;
+    String authority = path.substring(0, end);
+    return authority;
   }
 
 }

@@ -1,4 +1,4 @@
-set pg_url = 127.0.0.1:5432/tdw;  
+set pg_url = 127.0.0.1:5432/tdw_query_info;  
 
 create external table pgdata1 (key int,value string) stored as pgdata;
 
@@ -8,7 +8,7 @@ explain select * from pgdata1 order by key;
 
 select * from pgdata1 order by key;
 
-set hive.pgdata.storage.url = jdbc:postgresql://127.0.0.1:5432/tdw;
+set hive.pgdata.storage.url = jdbc:postgresql://127.0.0.1:5432/tdw_query_info;
 
 create external table pgdata2 (key int,value string) stored as pgdata;
 

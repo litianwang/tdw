@@ -22,6 +22,7 @@ import java.util.*;
 import java.io.*;
 
 import org.apache.hadoop.hive.ql.plan.*;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.conf.HiveConf;
 
 public class TaskFactory {
@@ -96,7 +97,7 @@ public class TaskFactory {
       try {
 
         Task<T> ret = null;
-        if (conf.getVar(HiveConf.ConfVars.HADOOPJT).equals("local") || viachild) {
+        if (ShimLoader.getHadoopShims().isLocalMode(conf) || viachild) {
           ret = (Task<T>) MapRedTask.class.newInstance();
         } else {
           ret = (Task<T>) ExecDriver.class.newInstance();

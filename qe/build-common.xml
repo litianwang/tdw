@@ -65,6 +65,23 @@
     <pathelement location="" />
     <pathelement location="${test.data.dir}/conf"/>
     <pathelement location="${hive.conf.dir}"/>
+    <pathelement location="${hadoop.test.jar}"/>
+	<pathelement location="${hadoop.common.test.jar}"/>
+	<pathelement location="${hadoop.hdfs.test.jar}"/>
+	<pathelement location="${hadoop.mapreduce.test.jar}"/>
+	<pathelement location="${hadoop.common.jar}"/>
+	<pathelement location="${hadoop.hdfs.jar}"/>
+	<pathelement location="${hadoop.mapreduce.jar}"/>
+	<pathelement location="${activation.jar}"/>
+	<pathelement location="${commons.net.jar}"/>
+	<pathelement location="${guava.jar}"/>
+	<pathelement location="${commons-configuration.jar}"/>
+	<pathelement location="${hadoop-auth.jar}"/>
+	<pathelement location="${hadoop-annotations.jar}"/>
+	<pathelement location="${slf4j-api.jar}"/>
+	<pathelement location="${slf4j-log4j12.jar}"/>
+	<pathelement location="${avro.jar}"/>
+
     <fileset dir="${hive.root}" includes="testlibs/*.jar"/>
     <path refid="classpath"/>
   </path>
@@ -94,9 +111,13 @@
   <!-- the normal classpath -->
   <path id="common-classpath">
     <pathelement location="${hadoop.jar}"/>
+    <pathelement location="${hadoop.common.jar}"/>
+    <pathelement location="${hadoop.hdfs.jar}"/>
+	<pathelement location="${hadoop.mapreduce.jar}"/>
+    <pathelement location="${hadoop.cdh3.core.jar}"/>
+    <pathelement location="${hadoop.cdh3.hdfs.jar}"/>
     <pathelement location="${build.dir.hive}/classes"/>
     <fileset dir="${build.dir.hive}" includes="*/*.jar"/>
-  	<fileset dir="${hive.root}/auxlib" includes="*.jar"/>
     <fileset dir="${hive.root}/lib" includes="*.jar"/>
     <fileset dir="${hive.root}/ql/lib" includes="*.jar"/>
   </path>

@@ -18,8 +18,10 @@
 
 package org.apache.hadoop.hive.ql.optimizer.ppr;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+
 import org.apache.hadoop.hive.ql.exec.FilterOperator;
 import org.apache.hadoop.hive.ql.exec.TableScanOperator;
 import org.apache.hadoop.hive.ql.lib.Node;
@@ -29,6 +31,9 @@ import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.parse.TypeCheckProcFactory;
 import org.apache.hadoop.hive.ql.plan.exprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.exprNodeGenericFuncDesc;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNot;
 
 public class OpProcFactory {
 
@@ -67,6 +72,23 @@ public class OpProcFactory {
       exprNodeDesc ppr_pred = ExprProcFactory.genPruner(alias, predicate,
           hasNonPartCols);
       owc.addHasNonPartCols(hasNonPartCols);
+      
+      // if 'NOT(AND(part column,...))', do not partition prun
+      if (!hasNonPartCols && predicate != null && predicate instanceof exprNodeGenericFuncDesc) {
+        GenericUDF udfNot = ((exprNodeGenericFuncDesc)predicate).getGenericUDF();
+        if (udfNot != null && udfNot instanceof GenericUDFOPNot) {
+          List<exprNodeDesc> children = ((exprNodeGenericFuncDesc)predicate).getChildExprs();
+          if (children != null && children.size() == 1) {
+            exprNodeDesc expr = children.get(0);
+            if (expr != null && expr instanceof exprNodeGenericFuncDesc) {
+              GenericUDF udfAnd = ((exprNodeGenericFuncDesc)expr).getGenericUDF();
+              if (udfAnd != null && udfAnd instanceof GenericUDFOPAnd) {
+                return null;
+              }
+            }
+          }
+        }
+      }
 
       addPruningPred(owc.getOpToPartPruner(), top, ppr_pred);
 

@@ -182,6 +182,8 @@ public class FetchTask extends Task<fetchWork> implements Serializable {
             int index = it.next().intValue();
             if (index < tmpArr.length) {
               newstr += (tmpArr[index] + mysep);
+            } else {
+              newstr += mysep;
             }
           }
           getrow = newstr;

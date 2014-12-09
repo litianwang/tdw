@@ -64,6 +64,9 @@ public class tdw_query_info implements
       "queryState", org.apache.thrift.protocol.TType.STRING, (short) 10);
   private static final org.apache.thrift.protocol.TField B_IQUERY_STRING_FIELD_DESC = new org.apache.thrift.protocol.TField(
       "bIQueryString", org.apache.thrift.protocol.TType.STRING, (short) 11);
+  private static final org.apache.thrift.protocol.TField PORT_FIELD_DESC = new org.apache.thrift.protocol.TField("port", org.apache.thrift.protocol.TType.STRING, (short)12);
+  private static final org.apache.thrift.protocol.TField CLIENT_IP_FIELD_DESC = new org.apache.thrift.protocol.TField("clientIp", org.apache.thrift.protocol.TType.STRING, (short)13);
+  private static final org.apache.thrift.protocol.TField DB_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("dbName", org.apache.thrift.protocol.TType.STRING, (short)14);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -83,13 +86,19 @@ public class tdw_query_info implements
   private String taskid;
   private String queryState;
   private String bIQueryString;
+  private String port; // required
+  private String clientIp; // required
+  private String dbName; // required
 
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     QUERY_ID((short) 1, "queryId"), USER_NAME((short) 2, "userName"), SESSION_ID(
         (short) 3, "sessionId"), START_TIME((short) 4, "startTime"), FINISH_TIME(
         (short) 5, "finishTime"), QUERY_STRING((short) 6, "queryString"), MRNUM(
         (short) 7, "MRNum"), IP((short) 8, "ip"), TASKID((short) 9, "taskid"), QUERY_STATE(
-        (short) 10, "queryState"), B_IQUERY_STRING((short) 11, "bIQueryString");
+        (short) 10, "queryState"), B_IQUERY_STRING((short) 11, "bIQueryString"),
+    PORT((short)12, "port"),
+    CLIENT_IP((short)13, "clientIp"),
+    DB_NAME((short)14, "dbName");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -123,8 +132,14 @@ public class tdw_query_info implements
         return QUERY_STATE;
       case 11:
         return B_IQUERY_STRING;
-      default:
-        return null;
+        case 12: // PORT
+          return PORT;
+        case 13: // CLIENT_IP
+          return CLIENT_IP;
+        case 14: // DB_NAME
+          return DB_NAME;
+        default:
+          return null;
       }
     }
 
@@ -214,6 +229,12 @@ public class tdw_query_info implements
             org.apache.thrift.TFieldRequirementType.DEFAULT,
             new org.apache.thrift.meta_data.FieldValueMetaData(
                 org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.PORT, new org.apache.thrift.meta_data.FieldMetaData("port", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.CLIENT_IP, new org.apache.thrift.meta_data.FieldMetaData("clientIp", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.DB_NAME, new org.apache.thrift.meta_data.FieldMetaData("dbName", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(
         tdw_query_info.class, metaDataMap);
@@ -222,9 +243,22 @@ public class tdw_query_info implements
   public tdw_query_info() {
   }
 
-  public tdw_query_info(String queryId, String userName, String sessionId,
-      String startTime, String finishTime, String queryString, int MRNum,
-      String ip, String taskid, String queryState, String bIQueryString) {
+  public tdw_query_info(
+    String queryId,
+    String userName,
+    String sessionId,
+    String startTime,
+    String finishTime,
+    String queryString,
+    int MRNum,
+    String ip,
+    String taskid,
+    String queryState,
+    String bIQueryString,
+    String port,
+    String clientIp,
+    String dbName)
+  {
     this();
     this.queryId = queryId;
     this.userName = userName;
@@ -238,6 +272,9 @@ public class tdw_query_info implements
     this.taskid = taskid;
     this.queryState = queryState;
     this.bIQueryString = bIQueryString;
+    this.port = port;
+    this.clientIp = clientIp;
+    this.dbName = dbName;
   }
 
   public tdw_query_info(tdw_query_info other) {
@@ -274,6 +311,15 @@ public class tdw_query_info implements
     if (other.isSetBIQueryString()) {
       this.bIQueryString = other.bIQueryString;
     }
+    if (other.isSetPort()) {
+      this.port = other.port;
+    }
+    if (other.isSetClientIp()) {
+      this.clientIp = other.clientIp;
+    }
+    if (other.isSetDbName()) {
+      this.dbName = other.dbName;
+    }
   }
 
   public tdw_query_info deepCopy() {
@@ -294,6 +340,9 @@ public class tdw_query_info implements
     this.taskid = null;
     this.queryState = null;
     this.bIQueryString = null;
+    this.port = null;
+    this.clientIp = null;
+    this.dbName = null;
   }
 
   public String getQueryId() {
@@ -537,6 +586,75 @@ public class tdw_query_info implements
     }
   }
 
+  public String getPort() {
+    return this.port;
+  }
+
+  public void setPort(String port) {
+    this.port = port;
+  }
+
+  public void unsetPort() {
+    this.port = null;
+  }
+
+  /** Returns true if field port is set (has been assigned a value) and false otherwise */
+  public boolean isSetPort() {
+    return this.port != null;
+  }
+
+  public void setPortIsSet(boolean value) {
+    if (!value) {
+      this.port = null;
+    }
+  }
+
+  public String getClientIp() {
+    return this.clientIp;
+  }
+
+  public void setClientIp(String clientIp) {
+    this.clientIp = clientIp;
+  }
+
+  public void unsetClientIp() {
+    this.clientIp = null;
+  }
+
+  /** Returns true if field clientIp is set (has been assigned a value) and false otherwise */
+  public boolean isSetClientIp() {
+    return this.clientIp != null;
+  }
+
+  public void setClientIpIsSet(boolean value) {
+    if (!value) {
+      this.clientIp = null;
+    }
+  }
+
+  public String getDbName() {
+    return this.dbName;
+  }
+
+  public void setDbName(String dbName) {
+    this.dbName = dbName;
+  }
+
+  public void unsetDbName() {
+    this.dbName = null;
+  }
+
+  /** Returns true if field dbName is set (has been assigned a value) and false otherwise */
+  public boolean isSetDbName() {
+    return this.dbName != null;
+  }
+
+  public void setDbNameIsSet(boolean value) {
+    if (!value) {
+      this.dbName = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case QUERY_ID:
@@ -627,6 +745,30 @@ public class tdw_query_info implements
       }
       break;
 
+    case PORT:
+      if (value == null) {
+        unsetPort();
+      } else {
+        setPort((String)value);
+      }
+      break;
+
+    case CLIENT_IP:
+      if (value == null) {
+        unsetClientIp();
+      } else {
+        setClientIp((String)value);
+      }
+      break;
+
+    case DB_NAME:
+      if (value == null) {
+        unsetDbName();
+      } else {
+        setDbName((String)value);
+      }
+      break;
+
     }
   }
 
@@ -665,6 +807,15 @@ public class tdw_query_info implements
     case B_IQUERY_STRING:
       return getBIQueryString();
 
+    case PORT:
+      return getPort();
+
+    case CLIENT_IP:
+      return getClientIp();
+
+    case DB_NAME:
+      return getDbName();
+
     }
     throw new IllegalStateException();
   }
@@ -697,6 +848,12 @@ public class tdw_query_info implements
       return isSetQueryState();
     case B_IQUERY_STRING:
       return isSetBIQueryString();
+    case PORT:
+      return isSetPort();
+    case CLIENT_IP:
+      return isSetClientIp();
+    case DB_NAME:
+      return isSetDbName();
     }
     throw new IllegalStateException();
   }
@@ -810,6 +967,33 @@ public class tdw_query_info implements
       if (!(this_present_bIQueryString && that_present_bIQueryString))
         return false;
       if (!this.bIQueryString.equals(that.bIQueryString))
+        return false;
+    }
+
+    boolean this_present_port = true && this.isSetPort();
+    boolean that_present_port = true && that.isSetPort();
+    if (this_present_port || that_present_port) {
+      if (!(this_present_port && that_present_port))
+        return false;
+      if (!this.port.equals(that.port))
+        return false;
+    }
+
+    boolean this_present_clientIp = true && this.isSetClientIp();
+    boolean that_present_clientIp = true && that.isSetClientIp();
+    if (this_present_clientIp || that_present_clientIp) {
+      if (!(this_present_clientIp && that_present_clientIp))
+        return false;
+      if (!this.clientIp.equals(that.clientIp))
+        return false;
+    }
+
+    boolean this_present_dbName = true && this.isSetDbName();
+    boolean that_present_dbName = true && that.isSetDbName();
+    if (this_present_dbName || that_present_dbName) {
+      if (!(this_present_dbName && that_present_dbName))
+        return false;
+      if (!this.dbName.equals(that.dbName))
         return false;
     }
 
@@ -960,6 +1144,36 @@ public class tdw_query_info implements
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetPort()).compareTo(typedOther.isSetPort());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetPort()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.port, typedOther.port);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetClientIp()).compareTo(typedOther.isSetClientIp());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetClientIp()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.clientIp, typedOther.clientIp);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetDbName()).compareTo(typedOther.isSetDbName());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetDbName()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.dbName, typedOther.dbName);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1073,6 +1287,30 @@ public class tdw_query_info implements
       sb.append("null");
     } else {
       sb.append(this.bIQueryString);
+    }
+    first = false;
+    if (!first) sb.append(", ");
+    sb.append("port:");
+    if (this.port == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.port);
+    }
+    first = false;
+    if (!first) sb.append(", ");
+    sb.append("clientIp:");
+    if (this.clientIp == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.clientIp);
+    }
+    first = false;
+    if (!first) sb.append(", ");
+    sb.append("dbName:");
+    if (this.dbName == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.dbName);
     }
     first = false;
     sb.append(")");
@@ -1222,9 +1460,32 @@ public class tdw_query_info implements
                 schemeField.type);
           }
           break;
-        default:
-          org.apache.thrift.protocol.TProtocolUtil
-              .skip(iprot, schemeField.type);
+          case 12: // PORT
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.port = iprot.readString();
+              struct.setPortIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
+          case 13: // CLIENT_IP
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.clientIp = iprot.readString();
+              struct.setClientIpIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
+          case 14: // DB_NAME
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.dbName = iprot.readString();
+              struct.setDbNameIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
+          default:
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
         }
         iprot.readFieldEnd();
       }
@@ -1290,6 +1551,21 @@ public class tdw_query_info implements
         oprot.writeString(struct.bIQueryString);
         oprot.writeFieldEnd();
       }
+      if (struct.port != null) {
+        oprot.writeFieldBegin(PORT_FIELD_DESC);
+        oprot.writeString(struct.port);
+        oprot.writeFieldEnd();
+      }
+      if (struct.clientIp != null) {
+        oprot.writeFieldBegin(CLIENT_IP_FIELD_DESC);
+        oprot.writeString(struct.clientIp);
+        oprot.writeFieldEnd();
+      }
+      if (struct.dbName != null) {
+        oprot.writeFieldBegin(DB_NAME_FIELD_DESC);
+        oprot.writeString(struct.dbName);
+        oprot.writeFieldEnd();
+      }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
     }
@@ -1344,7 +1620,16 @@ public class tdw_query_info implements
       if (struct.isSetBIQueryString()) {
         optionals.set(10);
       }
-      oprot.writeBitSet(optionals, 11);
+      if (struct.isSetPort()) {
+        optionals.set(11);
+      }
+      if (struct.isSetClientIp()) {
+        optionals.set(12);
+      }
+      if (struct.isSetDbName()) {
+        optionals.set(13);
+      }
+      oprot.writeBitSet(optionals, 14);
       if (struct.isSetQueryId()) {
         oprot.writeString(struct.queryId);
       }
@@ -1378,13 +1663,22 @@ public class tdw_query_info implements
       if (struct.isSetBIQueryString()) {
         oprot.writeString(struct.bIQueryString);
       }
+      if (struct.isSetPort()) {
+        oprot.writeString(struct.port);
+      }
+      if (struct.isSetClientIp()) {
+        oprot.writeString(struct.clientIp);
+      }
+      if (struct.isSetDbName()) {
+        oprot.writeString(struct.dbName);
+      }
     }
 
     @Override
     public void read(org.apache.thrift.protocol.TProtocol prot,
         tdw_query_info struct) throws org.apache.thrift.TException {
       TTupleProtocol iprot = (TTupleProtocol) prot;
-      BitSet incoming = iprot.readBitSet(11);
+      BitSet incoming = iprot.readBitSet(14);
       if (incoming.get(0)) {
         struct.queryId = iprot.readString();
         struct.setQueryIdIsSet(true);
@@ -1429,7 +1723,20 @@ public class tdw_query_info implements
         struct.bIQueryString = iprot.readString();
         struct.setBIQueryStringIsSet(true);
       }
+      if (incoming.get(11)) {
+        struct.port = iprot.readString();
+        struct.setPortIsSet(true);
+      }
+      if (incoming.get(12)) {
+        struct.clientIp = iprot.readString();
+        struct.setClientIpIsSet(true);
+      }
+      if (incoming.get(13)) {
+        struct.dbName = iprot.readString();
+        struct.setDbNameIsSet(true);
+      }
     }
   }
 
 }
+

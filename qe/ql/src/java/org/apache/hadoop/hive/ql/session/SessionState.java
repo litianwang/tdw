@@ -29,6 +29,7 @@ import java.net.URL;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
+import org.apache.hadoop.hive.metastore.api.tdw_query_error_info;
 import org.apache.hadoop.hive.metastore.api.tdw_query_info;
 import org.apache.hadoop.hive.ql.metadata.BIStore;
 import org.apache.hadoop.hive.ql.metadata.Hive;
@@ -67,6 +68,8 @@ public class SessionState {
   BIStore bistore = null;
 
   public BIStore getBIStore() {
+	  if (bistore == null )
+		  initBIStore();
     return bistore;
   }
 
@@ -148,7 +151,8 @@ public class SessionState {
   private tdw_query_info qinfo = null;
   private int current_mr_index = 0;
   private boolean iscli = true;
-
+  private tdw_query_error_info einfo = null;
+  
   public boolean getiscli() {
     return iscli;
   }
@@ -166,7 +170,7 @@ public class SessionState {
   }
 
   public void setTdw_query_info(tdw_query_info input) {
-    qinfo = new tdw_query_info(input);
+    qinfo = input;
   }
 
   public tdw_query_info getTdw_query_info() {
@@ -180,6 +184,14 @@ public class SessionState {
     } else {
       return false;
     }
+  }
+  
+  public void setTdw_query_error_info(tdw_query_error_info input) {
+    einfo = input;
+  }
+
+  public tdw_query_error_info getTdw_query_error_info() {
+    return einfo;
   }
 
   public void setSessionItemInFo(String name, int id, PrintWriter pw) {

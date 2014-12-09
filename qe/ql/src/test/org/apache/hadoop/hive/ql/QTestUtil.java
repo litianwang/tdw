@@ -177,7 +177,12 @@ public class QTestUtil {
       FileSystem fs = dfs.getFileSystem();
       mr = new MiniMRCluster(4, fs.getUri().toString(), 1);
 
-      String fsName = conf.get("fs.default.name");
+      String fsName = null;
+
+      fsName = conf.get("fs.defaultFS");
+      if(fsName == null){
+        fsName = conf.get("fs.default.name");
+      }
       assert fsName != null;
       conf.set("hive.metastore.warehouse.dir",
           fsName.concat("/build/ql/test/data/warehouse/"));

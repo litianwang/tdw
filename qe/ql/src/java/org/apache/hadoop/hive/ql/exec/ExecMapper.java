@@ -40,6 +40,8 @@ import org.apache.hadoop.hive.ql.plan.mapredLocalWork;
 import org.apache.hadoop.hive.ql.plan.mapredWork;
 import org.apache.hadoop.hive.ql.plan.mapredLocalWork.HashMapJoinContext;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCardinalityEstimation;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFExplode;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFPosExplode;
 import org.apache.hadoop.hive.serde2.objectinspector.InspectableObject;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.io.Writable;
@@ -86,6 +88,15 @@ public class ExecMapper extends MapReduceBase implements Mapper {
       int estCountBucketSize = jc.getInt("hive.exec.estdistinct.bucketsize.log", 15);
       int estCountBufferSize = jc.getInt("hive.exec.estdistinct.buffsize.log", 8);
       GenericUDAFCardinalityEstimation.initParams(estCountBucketSize, estCountBufferSize);
+      
+      boolean isChangSizeZero2Null = jc.getBoolean(HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_ZERO_SIZE_2_NULL.varname,
+              HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_ZERO_SIZE_2_NULL.defaultBoolVal);
+      boolean isChangeNull2Null = jc.getBoolean(HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_NULL_2_NULL.varname,
+          HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_NULL_2_NULL.defaultBoolVal);
+      GenericUDTFExplode.isChangSizeZero2Null = isChangSizeZero2Null;
+      GenericUDTFExplode.isChangNull2Null = isChangeNull2Null;
+      GenericUDTFPosExplode.isChangSizeZero2Null = isChangSizeZero2Null;
+      GenericUDTFPosExplode.isChangNull2Null = isChangeNull2Null;
       
       mapredWork mrwork = Utilities.getMapRedWork(job);
       mo = new MapOperator();

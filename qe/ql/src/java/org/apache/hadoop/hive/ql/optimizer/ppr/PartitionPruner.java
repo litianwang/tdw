@@ -36,6 +36,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator;
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluatorFactory;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
+import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.lib.DefaultGraphWalker;
 import org.apache.hadoop.hive.ql.lib.DefaultRuleDispatcher;
 import org.apache.hadoop.hive.ql.lib.Dispatcher;
@@ -71,6 +72,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
+import org.apache.hadoop.io.Text;
 
 public class PartitionPruner implements Transform {
 
@@ -105,6 +107,215 @@ public class PartitionPruner implements Transform {
     Map<String, ObjectInspectorConverters.Converter> partKeyConverters;
     Map<String, Set<String>> partKeyToTotalPartitions;
     Map<String, org.apache.hadoop.hive.metastore.api.Partition> partitionMap;
+
+    boolean supportPPrForIn = false;
+    boolean supportPPrForInRangePartFunc = false;
+    boolean useNewRangePartPPr = false;
+    boolean addFirstPartAlways = false;
+    boolean checkDateFormat = false;
+  }
+
+  static public class RangePartInfo {
+    public String name;
+    public String value;
+  }
+  
+  public static exprNodeDesc changeInExprToOrExpr(exprNodeDesc inExpr) throws HiveException{
+    List<exprNodeDesc> childList = inExpr.getChildren();
+    List<exprNodeDesc> orExprList = new ArrayList<exprNodeDesc>();
+    int size = childList.size();
+    exprNodeDesc leftExpr = childList.get(0);
+    try{
+      for(int index = 1 ; index < size; index++){
+        List<exprNodeDesc> tempExprList = new ArrayList<exprNodeDesc>();
+        tempExprList.add(leftExpr);
+        tempExprList.add(childList.get(index));
+        exprNodeDesc orItemExpr = (exprNodeGenericFuncDesc) TypeCheckProcFactory.getDefaultExprProcessor().getFuncExprNodeDesc("=",tempExprList);
+        orExprList.add(orItemExpr);
+      }      
+      exprNodeGenericFuncDesc ret = (exprNodeGenericFuncDesc) TypeCheckProcFactory.getDefaultExprProcessor().getFuncExprNodeDesc("or", orExprList); 
+      return ret;
+    }
+    catch(Exception x){
+      throw new HiveException(x);
+    }
+  }
+
+  public static String findRangPart(
+      ObjectInspectorConverters.Converter converter1,
+      ObjectInspectorConverters.Converter converter2, String value,
+      boolean isIncrease, List<RangePartInfo> rangPartInfoList) {
+    int start = 0;
+    int end = rangPartInfoList.size() - 1;
+    int mid = end / 2;
+    String compareValue = null;
+    int ret = 0;
+    int retPre = 0;
+    String compareValuePre = null;
+    int len = rangPartInfoList.size();
+
+    if (len == 0) {
+      return null;
+    }
+
+    if (isIncrease) {
+      for (;;) {
+        compareValue = rangPartInfoList.get(mid).value;
+        ret = ((Comparable) converter1.convert(value))
+            .compareTo((Comparable) converter2.convert(compareValue));
+
+        if (ret < 0) {
+          if (mid == 0) {
+            return rangPartInfoList.get(mid).name;
+          } else if (mid - 1 >= 0) {
+            compareValuePre = rangPartInfoList.get(mid - 1).value;
+            retPre = ((Comparable) converter1.convert(value))
+                .compareTo((Comparable) converter2.convert(compareValuePre));
+
+            if (retPre >= 0) {
+              return rangPartInfoList.get(mid).name;
+            }
+          }
+
+          end = mid - 1;
+          mid = (start + end) / 2;
+          if (start > end || end < 0 || start > len - 1) {
+            return null;
+          }
+        } else if (ret == 0) {
+          if (mid + 1 < len) {
+            return rangPartInfoList.get(mid + 1).name;
+          } else {
+            return null;
+          }
+        } else {
+          start = mid + 1;
+          mid = (start + end) / 2;
+          if (start > end || end < 0 || start > len - 1) {
+            return null;
+          }
+        }
+      }
+    } else {
+      for (;;) {
+        compareValue = rangPartInfoList.get(mid).value;
+        ret = ((Comparable) converter1.convert(value))
+            .compareTo((Comparable) converter2.convert(compareValue));
+
+        if (ret > 0) {
+          if (mid == 0) {
+            return rangPartInfoList.get(mid).name;
+          } else if (mid - 1 >= 0) {
+            compareValuePre = rangPartInfoList.get(mid - 1).value;
+            retPre = ((Comparable) converter1.convert(value))
+                .compareTo((Comparable) converter2.convert(compareValuePre));
+            if (retPre <= 0) {
+              return rangPartInfoList.get(mid).name;
+            }
+          }
+
+          end = mid - 1;
+          mid = (start + end) / 2;
+          if (start > end || end < 0 || start > len - 1) {
+            return null;
+          }
+        } else if (ret == 0) {
+          if (mid + 1 < len) {
+            return rangPartInfoList.get(mid + 1).name;
+          } else {
+            return null;
+          }
+        } else {
+          start = mid + 1;
+          mid = (start + end) / 2;
+          if (start > end || end < 0 || start > len - 1) {
+            return null;
+          }
+        }
+      }
+    }
+  }
+
+  public static boolean isContainRunningComputeFunction(exprNodeDesc funcDesc) {
+    if (funcDesc == null) {
+      return false;
+    }
+
+    if (FunctionRegistry.isFuncRunningCompute(funcDesc)) {
+      return true;
+    }
+
+    List<exprNodeDesc> children = funcDesc.getChildren();
+
+    if (children == null || children.isEmpty()) {
+      return false;
+    }
+
+    for (exprNodeDesc child : children) {
+      if (isContainRunningComputeFunction(child)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  public static List<exprNodeDesc> evaluatePrunedExpressionForIn(
+      exprNodeDesc prunerExpr, PartitionPrunerContext ppc,
+      Map<String, Set<String>> partColToTargetPartitions) throws HiveException
+
+  {
+    boolean isFunction = prunerExpr instanceof exprNodeGenericFuncDesc;
+    if (!isFunction) {
+      if (prunerExpr instanceof exprNodeColumnDesc) {
+        List<exprNodeDesc> partExprList = new ArrayList<exprNodeDesc>();
+        partExprList.add(prunerExpr);
+        return partExprList;
+      } else {
+        return null;
+      }
+    }
+
+    List<exprNodeDesc> children = prunerExpr.getChildren();
+    List<exprNodeDesc> returnPartDescs = new ArrayList<exprNodeDesc>();
+
+    for (exprNodeDesc child : children) {
+      Map<String, Set<String>> partMap = new HashMap<String, Set<String>>();
+      List<exprNodeDesc> results = evaluatePrunedExpressionForIn(child, ppc,
+          partMap);
+
+      if (results != null) {
+        addAndDeduplicate(returnPartDescs, results);
+      }
+    }
+    return returnPartDescs;
+  }
+
+  public static List<String> generateRange(String start, String end)
+      throws HiveException {
+    List<String> ret = new ArrayList<String>();
+
+    try {
+      long startNum = Long.valueOf(start);
+      long endNum = Long.valueOf(end);
+
+      for (long i = startNum; i < endNum; i++) {
+        ret.add(String.valueOf(i));
+      }
+    } catch (Exception x) {
+      throw new HiveException(x);
+    }
+
+    return ret;
+  }
+
+  public List<Long> generateRange(long start, long end) {
+    List<Long> ret = new ArrayList<Long>();
+    for (long i = start; i < end; i++) {
+      ret.add(i);
+    }
+
+    return ret;
   }
 
   private static List<exprNodeDesc> evaluatePrunedExpression(
@@ -137,6 +348,74 @@ public class PartitionPruner implements Transform {
     }
 
     int numPartExprs = returnPartDescs.size();
+    
+    if (ppc.supportPPrForIn && FunctionRegistry.isOpIn(prunerExpr)) {
+      // get left expression for "in", it maybe a parition column or a function
+      boolean isAFunction = false;
+      List<exprNodeDesc> inChild = prunerExpr.getChildren();
+      exprNodeDesc leftNode = inChild.get(0);
+      int childSize = inChild.size();
+      
+      Map<String, Set<String>> partMap = new HashMap<String, Set<String>>();
+      List<exprNodeDesc> results = evaluatePrunedExpressionForIn(leftNode, ppc, partMap);
+
+      partDescsFromChildren.add(results);
+
+      if (results != null) {
+        addAndDeduplicate(returnPartDescs, results);
+      }
+
+      if(returnPartDescs == null || returnPartDescs.isEmpty()){
+        return null;
+      }
+      exprNodeColumnDesc partColDesc = (exprNodeColumnDesc) returnPartDescs
+          .get(0);
+      String partColName = partColDesc.getColumn();
+      ObjectInspectorConverters.Converter converter = ppc.partKeyConverters
+          .get(partColName);
+      org.apache.hadoop.hive.metastore.api.Partition part = ppc.partitionMap
+          .get(partColName);
+      boolean isRangePartition = part.getParType().equalsIgnoreCase("RANGE");
+      boolean isHashPartition = part.getParType().equalsIgnoreCase("HASH");
+      Set<String> tempPartitions = null;
+
+      if(isRangePartition){
+        tempPartitions = evaluateRangePartitionForIn(ppc, prunerExpr,
+            ppc.partKeysInpsector, ppc.partKeyConverters.get(partColName),
+            part.getParSpaces(), part.getLevel(), ppc.numPartitionLevels);
+        
+        if (tempPartitions.isEmpty()
+            && part.getParSpaces().containsKey("default")) {
+          tempPartitions.add("default");
+        }
+      }
+      else if(isHashPartition){
+        tempPartitions = evaluateHashPartition(prunerExpr, ppc.partKeysInpsector,
+            ppc.partKeyConverters.get(partColName), part.getParSpaces(),
+            part.getLevel(), ppc.numPartitionLevels);
+      }
+      else{
+        tempPartitions = evaluateListPartitionForIn(prunerExpr,
+            ppc.partKeysInpsector, ppc.partKeyConverters.get(partColName),
+            part.getParSpaces(), part.getLevel(), ppc.numPartitionLevels);
+        
+        if (tempPartitions.isEmpty()
+            && part.getParSpaces().containsKey("default")) {
+          tempPartitions.add("default");
+        }
+      }
+           
+      Set<String> targetPartitions = partColToTargetPartitions.get(partColDesc
+          .getColumn());
+      if (targetPartitions == null) {
+        targetPartitions = tempPartitions;
+        partColToTargetPartitions
+            .put(partColDesc.getColumn(), targetPartitions);
+      } else {
+        targetPartitions.addAll(tempPartitions);
+      }     
+    }
+    
     if (FunctionRegistry.isOpOr(prunerExpr)) {
       for (String partKeyName : ppc.partKeyNames) {
         Set<String> leftParts = childrenPartitions.get(0).get(partKeyName);
@@ -187,7 +466,7 @@ public class PartitionPruner implements Transform {
     if ((isEqualUDF || FunctionRegistry.isOpEqualOrGreaterThan(prunerExpr)
         || FunctionRegistry.isOpEqualOrLessThan(prunerExpr)
         || FunctionRegistry.isOpGreaterThan(prunerExpr) || FunctionRegistry
-          .isOpLessThan(prunerExpr)) && numPartExprs == 1) {
+        .isOpLessThan(prunerExpr)) && numPartExprs == 1) {
       assert (partDescsFromChildren.size() == 2);
       exprNodeGenericFuncDesc funcDesc = (exprNodeGenericFuncDesc) prunerExpr;
 
@@ -220,6 +499,10 @@ public class PartitionPruner implements Transform {
         }
       }
 
+      boolean isContainFunc = isContainFunc(funcDesc);
+      LOG.info("XXisContainFunc=" + isContainFunc);
+      LOG.info("XXfuncDesc=" + funcDesc.getExprString());
+      
       exprNodeColumnDesc partColDesc = (exprNodeColumnDesc) returnPartDescs
           .get(0);
       String partColName = partColDesc.getColumn();
@@ -232,30 +515,44 @@ public class PartitionPruner implements Transform {
       boolean containEqual = false;
       Set<String> tempPartitions;
       if (isRangePartition) {
-        exprNodeGenericFuncDesc boundaryCheckerDesc = null;
-        if (FunctionRegistry.isOpEqualOrGreaterThan(prunerExpr)
-            || FunctionRegistry.isOpGreaterThan(prunerExpr)) {
-          boundaryCheckerDesc = (exprNodeGenericFuncDesc) TypeCheckProcFactory
-              .getDefaultExprProcessor().getFuncExprNodeDesc("=",
-                  funcDesc.getChildExprs());
+        if (ppc.useNewRangePartPPr && isContainFunc && (part.getParKey().getType().equalsIgnoreCase("bigint")
+            || part.getParKey().getType().equalsIgnoreCase("string")
+            || part.getParKey().getType().equalsIgnoreCase("int")
+            || part.getParKey().getType().equalsIgnoreCase("smallint")
+            || part.getParKey().getType().equalsIgnoreCase("tinyint"))) {
 
-          List<exprNodeDesc> argDescs = new ArrayList<exprNodeDesc>();
-          argDescs.add(funcDesc);
-          funcDesc = (exprNodeGenericFuncDesc) TypeCheckProcFactory
-              .getDefaultExprProcessor().getFuncExprNodeDesc("not", argDescs);
-          exprRewritten = true;
-          if (FunctionRegistry.isOpGreaterThan(prunerExpr))
-            containEqual = true;
-        } else if (FunctionRegistry.isOpEqual(prunerExpr)) {
-          funcDesc = (exprNodeGenericFuncDesc) TypeCheckProcFactory
-              .getDefaultExprProcessor().getFuncExprNodeDesc("<=",
-                  funcDesc.getChildExprs());
+          tempPartitions = evaluateNewRangePartition(funcDesc,
+              ppc.partKeysInpsector, ppc.partKeyConverters.get(partColName),
+              part.getParSpaces(), part.getLevel(), ppc.numPartitionLevels, ppc.addFirstPartAlways,
+              ppc.checkDateFormat);
+
+        } else {
+          exprNodeGenericFuncDesc boundaryCheckerDesc = null;
+          if (FunctionRegistry.isOpEqualOrGreaterThan(prunerExpr)
+              || FunctionRegistry.isOpGreaterThan(prunerExpr)) {
+            boundaryCheckerDesc = (exprNodeGenericFuncDesc) TypeCheckProcFactory
+                .getDefaultExprProcessor().getFuncExprNodeDesc("=",
+                    funcDesc.getChildExprs());
+
+            List<exprNodeDesc> argDescs = new ArrayList<exprNodeDesc>();
+            argDescs.add(funcDesc);
+            funcDesc = (exprNodeGenericFuncDesc) TypeCheckProcFactory
+                .getDefaultExprProcessor().getFuncExprNodeDesc("not", argDescs);
+            exprRewritten = true;
+            if (FunctionRegistry.isOpGreaterThan(prunerExpr))
+              containEqual = true;
+          } else if (FunctionRegistry.isOpEqual(prunerExpr)) {
+            funcDesc = (exprNodeGenericFuncDesc) TypeCheckProcFactory
+                .getDefaultExprProcessor().getFuncExprNodeDesc("<=",
+                    funcDesc.getChildExprs());
+          }
+
+          tempPartitions = evaluateRangePartition(funcDesc,
+              boundaryCheckerDesc, ppc.partKeysInpsector,
+              ppc.partKeyConverters.get(partColName), part.getParSpaces(),
+              part.getLevel(), ppc.numPartitionLevels, isEqualUDF,
+              exprRewritten, containEqual);
         }
-
-        tempPartitions = evaluateRangePartition(funcDesc, boundaryCheckerDesc,
-            ppc.partKeysInpsector, ppc.partKeyConverters.get(partColName),
-            part.getParSpaces(), part.getLevel(), ppc.numPartitionLevels,
-            isEqualUDF, exprRewritten, containEqual);
 
         if (tempPartitions.isEmpty()
             && part.getParSpaces().containsKey("default")) {
@@ -291,6 +588,70 @@ public class PartitionPruner implements Transform {
 
     return returnPartDescs;
   }
+  
+  
+  public static boolean isContainFunc(exprNodeGenericFuncDesc funcDesc){
+    List<exprNodeDesc>  childs = funcDesc.getChildExprs();
+    int childSize = childs.size();
+    boolean containFunc = false;
+    boolean containCol = false;
+    for(int index = 0; index < childSize; index++){
+      containFunc = checkContainFunc(childs.get(index));
+      containCol = checkContainCol(childs.get(index));
+      if(containFunc && containCol){
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  public static boolean checkContainFunc(exprNodeDesc expr){
+    if(expr == null){
+      return false;
+    }
+    LOG.info("XXXXXcheckContainFunc=" + expr.getExprString());
+    if(expr instanceof exprNodeGenericFuncDesc){
+      return true;
+    }
+    else{
+      List<exprNodeDesc> childs = expr.getChildren();
+      boolean ret = false;
+      if(childs != null && !childs.isEmpty()){
+        for(exprNodeDesc desc:childs){
+          ret = checkContainFunc(desc);
+          if(ret){
+            return ret;
+          }
+        }        
+      }
+      return false;
+    }
+  }
+  
+  public static boolean checkContainCol(exprNodeDesc expr){
+    if(expr == null){
+      return false;
+    }
+    
+    LOG.info("XXXXXcheckContainCol=" + expr.getExprString());
+    
+    if(expr instanceof exprNodeColumnDesc){
+      return true;
+    }
+    else{
+      List<exprNodeDesc> childs = expr.getChildren();
+      boolean ret = false;
+      if(childs != null && !childs.isEmpty()){
+        for(exprNodeDesc desc:childs){
+          ret = checkContainCol(desc);
+          if(ret){
+            return ret;
+          }
+        }        
+      }
+      return false;
+    }
+  }
 
   private static void addAndDeduplicate(List<exprNodeDesc> target,
       List<exprNodeDesc> source) {
@@ -321,7 +682,7 @@ public class PartitionPruner implements Transform {
     for (int i = 0; i < numPartitionLevel; i++) {
       partObjects.add(null);
     }
-
+    
     ExprNodeEvaluator evaluator = ExprNodeEvaluatorFactory.get(desc);
     ObjectInspector evaluateResultOI = evaluator.initialize(partKeysInspector);
 
@@ -384,6 +745,7 @@ public class PartitionPruner implements Transform {
       }
     }
 
+    targetPartitions.remove("default");
     return targetPartitions;
   }
 
@@ -423,6 +785,338 @@ public class PartitionPruner implements Transform {
     return targetPartitions;
   }
 
+  private static Set<String> evaluateNewRangePartition(exprNodeDesc desc,
+      ObjectInspector partKeysInpsector,
+      ObjectInspectorConverters.Converter converter,
+      Map<String, List<String>> partSpace, int level, 
+      int numPartitionLevels, boolean addFirst, boolean checkDateStr)
+      throws HiveException {
+
+    int startPos = -1;
+    int endPos = -1;
+    List<Integer> indexList = new ArrayList<Integer>();
+    int index = 0;
+
+    ExprNodeEvaluator evaluator = ExprNodeEvaluatorFactory.get(desc);
+    ObjectInspector evaluateResultOI = evaluator.initialize(partKeysInpsector);
+
+    Set<String> targetPartitions = new TreeSet<String>();
+
+    ArrayList<Object> partObjects = new ArrayList<Object>(numPartitionLevels);
+    for (int i = 0; i < numPartitionLevels; i++) {
+      partObjects.add(null);
+    }
+
+    String startValue = null;
+    String endValue = null;
+    String startKey = null;
+    boolean containDefaultPart = false;
+    for (Entry<String, List<String>> entry : partSpace.entrySet()) {
+      List<String> partValues = entry.getValue();
+
+      if (partValues == null || partValues.isEmpty()) {
+        if(entry.getKey().equalsIgnoreCase("default")){
+          containDefaultPart = true;
+        }
+        continue;
+      }
+
+      endValue = partValues.get(0);
+      List<String> rangeValueList = null;
+      if (startValue == null) {
+        startValue = endValue;
+        index++;
+        startKey = entry.getKey();
+        continue;
+      } else {
+        rangeValueList = generateRange(startValue, endValue);
+      }
+
+      for (String partVal : rangeValueList) {
+        if(checkDateStr){
+          boolean isValidDateStr = checkPartValDateFormat(partVal);
+          if(!isValidDateStr){
+            continue;
+          }
+        }
+        Object pv = converter.convert(partVal);
+        partObjects.set(level, pv);
+        Object evaluateResultO = evaluator.evaluate(partObjects);
+        Boolean r = (Boolean) ((PrimitiveObjectInspector) evaluateResultOI)
+            .getPrimitiveJavaObject(evaluateResultO);
+        if (r == null) {
+          Set<String> ret = new TreeSet<String>();
+          if(addFirst){
+            ret.add(startKey);
+          }
+          return ret;
+        } else {
+          if (Boolean.TRUE.equals(r)) {
+            targetPartitions.add(entry.getKey());
+            indexList.add(index);
+            if (startPos == -1) {
+              startPos = index;
+            }
+
+            endPos = index;
+            break;
+          }
+        }
+      }
+
+      startValue = endValue;
+      index++;
+    }
+
+    if (startPos == 1 || startPos == -1) {
+      targetPartitions.add(startKey);
+      if(startPos == -1 && containDefaultPart){
+        targetPartitions.add("default");
+      }
+    }
+
+    if (!checkContinues((ArrayList<Integer>) indexList)) {
+      targetPartitions.add(startKey);
+    }
+
+    if(addFirst){
+      targetPartitions.add(startKey);
+    }
+    return targetPartitions;
+  }
+  
+  private static boolean checkDateDay(int year, int month, int day){
+    switch(month){
+      case 1:
+      case 3:
+      case 5:
+      case 7:
+      case 8:
+      case 10:
+      case 12:
+        if(day >= 1 && day <= 31){
+          return true;
+        }
+        else{
+          return false;
+        }
+      
+      case 4:
+      case 6:
+      case 9:
+      case 11:
+        if(day >= 1 && day <= 30){
+          return true;
+        }
+        else{
+          return false;
+        }
+        
+      case 2:{
+        boolean isLeapyear = ((year % 4 == 0) && (year % 100 != 0)) || ((year % 100 == 0) && (year % 400 == 0));
+        if(isLeapyear && day >=1 && day <= 29){
+          return true;
+        }
+        else if(!isLeapyear && day >=1 && day <= 28){
+          return true;
+        }
+        else{
+          return false;
+        }    
+      }  
+    }
+    
+    return false;
+  }
+  
+  private static boolean checkPartValDateFormat(String partVal) {
+    // TODO Auto-generated method stub
+    if(partVal == null || partVal.isEmpty()){
+      return false;
+    }
+    int partValLen = partVal.length();
+    switch(partValLen){
+    case 4:{
+      int year= Integer.valueOf(partVal);
+      if(year > 0){
+        return true;
+      }
+      else{
+        return false;
+      }
+    }
+
+    case 6:{
+      int year= Integer.valueOf(partVal.substring(0,4));
+      int month = Integer.valueOf(partVal.substring(4,6));
+      if(year > 0 && month > 0 && month <= 12){
+        return true;
+      }
+      else{
+        return false;
+      }
+    }
+
+    case 8:{
+      int year= Integer.valueOf(partVal.substring(0,4));
+      int month = Integer.valueOf(partVal.substring(4,6));
+      int day = Integer.valueOf(partVal.substring(6,8));
+      if(year > 0 && month > 0 && month <= 12){
+        return checkDateDay(year, month, day);
+      }
+      else{
+        return false;
+      }
+    }
+    
+    case 10:{
+      int year= Integer.valueOf(partVal.substring(0,4));
+      int month = Integer.valueOf(partVal.substring(4,6));
+      int day = Integer.valueOf(partVal.substring(6,8));
+      int hour = Integer.valueOf(partVal.substring(8,10));
+      if(year > 0 && month > 0 && month <= 12 && hour >= 0 && hour <= 23){
+        return checkDateDay(year, month, day);
+      }
+      else{
+        return false;
+      }
+    }
+
+    case 12:{
+      int year= Integer.valueOf(partVal.substring(0,4));
+      int month = Integer.valueOf(partVal.substring(4,6));
+      int day = Integer.valueOf(partVal.substring(6,8));
+      int hour = Integer.valueOf(partVal.substring(8,10));
+      int min = Integer.valueOf(partVal.substring(10,12));
+      if(year > 0 && month > 0 && month <= 12 && hour >= 0 && hour <= 23 && min >= 0 && min <= 59){
+        return checkDateDay(year, month, day);
+      }
+      else{
+        return false;
+      }
+    }
+      
+    default:
+      return false;
+    }
+  }
+
+  private static Set<String> evaluateListPartitionForIn(exprNodeDesc desc,
+      ObjectInspector partKeysInpsector,
+      ObjectInspectorConverters.Converter converter,
+      Map<String, List<String>> partSpace, int level, int numPartitionLevels)
+      throws HiveException {
+    
+    List<exprNodeDesc> childExprs = desc.getChildren();
+    exprNodeDesc leftExpr = childExprs.get(0);
+    int size = childExprs.size();
+    Set<String> targetPartitions = new TreeSet<String>();
+    
+    for(int index = 1; index < size; index++){
+      List<exprNodeDesc> exprList = new ArrayList<exprNodeDesc>();
+      exprList.add(leftExpr);
+      exprList.add(childExprs.get(index));
+      exprNodeDesc equalExpr = (exprNodeGenericFuncDesc) TypeCheckProcFactory
+                .getDefaultExprProcessor().getFuncExprNodeDesc("=",exprList);
+      
+      LOG.info("XXXXXXXXXXXXXXXXXXXXXXXXXequalExpr=" + equalExpr.getExprString());
+      
+      ExprNodeEvaluator evaluator = ExprNodeEvaluatorFactory.get(equalExpr);
+      ObjectInspector evaluateResultOI = evaluator.initialize(partKeysInpsector);
+
+      ArrayList<Object> partObjects = new ArrayList<Object>(numPartitionLevels);
+      for (int i = 0; i < numPartitionLevels; i++) {
+        partObjects.add(null);
+      }
+      for (Entry<String, List<String>> entry : partSpace.entrySet()) {
+        List<String> partValues = entry.getValue();
+
+        for (String partVal : partValues) {
+          Object pv = converter.convert(partVal);
+          partObjects.set(level, pv);
+          Object evaluateResultO = evaluator.evaluate(partObjects);
+          Boolean r = (Boolean) ((PrimitiveObjectInspector) evaluateResultOI)
+              .getPrimitiveJavaObject(evaluateResultO);
+          if (r == null) {
+            return new TreeSet<String>();
+          } else {
+            if (Boolean.TRUE.equals(r)) {
+              targetPartitions.add(entry.getKey());
+            }
+          }
+        }
+      }
+    }
+    
+    return targetPartitions;
+  }
+  
+  private static Set<String> evaluateRangePartitionForIn(PartitionPrunerContext ppc, 
+      exprNodeDesc desc,
+      ObjectInspector partKeysInpsector,
+      ObjectInspectorConverters.Converter converter,
+      Map<String, List<String>> partSpace, int level, int numPartitionLevels)
+      throws HiveException {
+    
+    List<exprNodeDesc> childExprs = desc.getChildren();
+    exprNodeDesc leftExpr = childExprs.get(0);
+    int size = childExprs.size();
+    Set<String> targetPartitions = new TreeSet<String>();
+    boolean isContainFunc = leftExpr instanceof exprNodeGenericFuncDesc;
+    
+    for(int index = 1; index < size; index++){
+      List<exprNodeDesc> exprList = new ArrayList<exprNodeDesc>();
+      exprList.add(leftExpr);
+      exprList.add(childExprs.get(index));
+      Set<String> retParts = null;
+      
+      if(isContainFunc && ppc.useNewRangePartPPr){
+        exprNodeDesc equalExpr = (exprNodeGenericFuncDesc) TypeCheckProcFactory
+              .getDefaultExprProcessor().getFuncExprNodeDesc("=",exprList);
+        
+        LOG.info("XXXNEW equalExpr=" + equalExpr.getExprString());
+        
+        retParts = evaluateNewRangePartition(equalExpr, partKeysInpsector, converter, 
+            partSpace, level, numPartitionLevels, ppc.addFirstPartAlways, ppc.checkDateFormat);      
+      }
+      else{
+        exprNodeDesc equalExpr = (exprNodeGenericFuncDesc) TypeCheckProcFactory
+              .getDefaultExprProcessor().getFuncExprNodeDesc("<=",exprList);
+
+        LOG.info("XXXequalExpr=" + equalExpr.getExprString());
+              
+        retParts = evaluateRangePartition(equalExpr, null, partKeysInpsector, converter, 
+          partSpace, level, numPartitionLevels, true, false, true);
+      }
+      
+      targetPartitions.addAll(retParts);
+    }
+    
+    return targetPartitions;
+  }
+
+  static boolean checkContinues(ArrayList<Integer> indexList) {
+    boolean isContinues = true;
+    int len = indexList.size();
+    int lastValue = -1;
+    int value = -1;
+
+    for (int i = 0; i < len; i++) {
+      if (i == 0) {
+        continue;
+      } else {
+        lastValue = indexList.get(i - 1);
+        value = indexList.get(i);
+        if (value > lastValue + 1) {
+          isContinues = false;
+          break;
+        }
+      }
+    }
+
+    return isContinues;
+  }
+
   private static Set<String> evaluateHashPartition(exprNodeDesc desc,
       ObjectInspector partKeysInpsector,
       ObjectInspectorConverters.Converter converter,
@@ -443,11 +1137,40 @@ public class PartitionPruner implements Transform {
     LOG.trace("Started pruning partiton");
     LOG.trace("tabname = " + tab.getName());
     LOG.trace("prune Expression = " + prunerExpr);
+    
+    boolean supportPPrForIn = false;
+    boolean supportPPrForInRangePartFunc = false;
+    boolean useNewRangePartPPr = false;
+    boolean addFirstPartAlways = false;
+    boolean checkDateFormat = false;
+    if(conf != null)
+    {
+      //supportPPrForIn = conf.getBoolean("hive.optimize.ppr.in", false);
+      supportPPrForIn = conf.getBoolean(HiveConf.ConfVars.HIVE_OPT_PPR_IN.varname, 
+          HiveConf.ConfVars.HIVE_OPT_PPR_IN.defaultBoolVal);
+      //supportPPrForInRangePartFunc = conf.getBoolean("hive.optimize.ppr.rangepart.func", false);
+      supportPPrForInRangePartFunc = conf.getBoolean(HiveConf.ConfVars.HIVE_OPT_PPR_IN_RANGEPART_FUNC_SUPPORT.varname,
+          HiveConf.ConfVars.HIVE_OPT_PPR_IN_RANGEPART_FUNC_SUPPORT.defaultBoolVal);
+      useNewRangePartPPr = conf.getBoolean(HiveConf.ConfVars.HIVE_OPT_PPR_RANGEPART_NEW.varname,
+          HiveConf.ConfVars.HIVE_OPT_PPR_RANGEPART_NEW.defaultBoolVal);
+      addFirstPartAlways = conf.getBoolean(HiveConf.ConfVars.HIVE_OPT_PPR_RANGEPART_NEW_ADDFIRSTPART_ALWAYS.varname,
+          HiveConf.ConfVars.HIVE_OPT_PPR_RANGEPART_NEW_ADDFIRSTPART_ALWAYS.defaultBoolVal);
+      checkDateFormat = conf.getBoolean(HiveConf.ConfVars.HIVE_OPT_PPR_RANGEPART_NEW_CHECK_DATEFORMAT.varname,
+          HiveConf.ConfVars.HIVE_OPT_PPR_RANGEPART_NEW_CHECK_DATEFORMAT.defaultBoolVal);
+    }
+    
 
     Set<String> targetPartitionPaths = new TreeSet<String>();
 
     if (tab.isPartitioned()) {
       PartitionPrunerContext ppc = new PartitionPrunerContext();
+      
+      ppc.supportPPrForIn = supportPPrForIn;
+      ppc.supportPPrForInRangePartFunc = supportPPrForInRangePartFunc;
+      ppc.useNewRangePartPPr = useNewRangePartPPr;
+      ppc.addFirstPartAlways = addFirstPartAlways;
+      ppc.checkDateFormat = checkDateFormat;
+    
 
       ppc.partKeyConverters = new HashMap<String, ObjectInspectorConverters.Converter>();
       ppc.partKeyToTotalPartitions = new HashMap<String, Set<String>>();

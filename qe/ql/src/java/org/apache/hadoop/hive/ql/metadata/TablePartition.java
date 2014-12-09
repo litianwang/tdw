@@ -104,6 +104,7 @@ public class TablePartition {
   
   public void setPaths(List<Path> ps) {
     paths = (ArrayList<Path>) ps;
+    return;
   }
 
   public Table getTbl() {

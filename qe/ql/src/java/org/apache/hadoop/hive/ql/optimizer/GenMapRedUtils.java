@@ -348,11 +348,11 @@ public class GenMapRedUtils {
         for (Task<? extends Serializable> parTask : parTasks)
           parTask.addDependentTask(currTask);
       }
-
+      
       if (opProcCtx.getRootTasks().contains(currTask))
         opProcCtx.getRootTasks().remove(currTask);
     }
-
+    
     opProcCtx.setCurrTask(currTask);
   }
 

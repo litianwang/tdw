@@ -74,6 +74,9 @@ public class ASTPartitionPruner {
   private boolean onlyContainsPartCols;
 
   private boolean ambiguousTableOrColunm = false;
+  
+  // true if condition 'in' is about subQAlias column
+  private boolean isSubQAlias = false;
 
   public ASTPartitionPruner() {
   }
@@ -355,6 +358,7 @@ public class ASTPartitionPruner {
         if (qb.getSubqAliases().contains(tabAlias.toLowerCase())) {
           tempDesc = new ExprNodeTempDesc((exprNodeConstantDesc) tempChildren
               .get(1).getDesc());
+          isSubQAlias = true;
         } else {
           tempDesc = getTableColumnDesc(tabAlias, colName);
         }
@@ -368,6 +372,17 @@ public class ASTPartitionPruner {
 
         exprNodeDesc desc = null;
         try {
+          if (isSubQAlias) {
+            String funcText = TypeCheckProcFactory.DefaultExprProcessor.getFunctionText(expr, isFunction);
+            if (funcText != null && funcText.equalsIgnoreCase("in")) {
+              assert children.get(0) != null;
+              TypeInfo firstTypeInfo = children.get(0).getTypeInfo();
+              for (int i = 1; i < children.size(); i++) {
+                children.get(i).setTypeInfo(firstTypeInfo);;
+              }
+            }
+            isSubQAlias = false;
+          }
           desc = TypeCheckProcFactory.DefaultExprProcessor
               .getXpathOrFuncExprNodeDesc(expr, isFunction, children,
                   unparseTranslator);

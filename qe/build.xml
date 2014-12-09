@@ -83,6 +83,11 @@
   <!-- the normal classpath -->
   <path id="common-classpath">
     <pathelement location="${hadoop.jar}"/>
+    <pathelement location="${hadoop.common.jar}"/>
+    <pathelement location="${hadoop.hdfs.jar}"/>
+	<pathelement location="${hadoop.mapreduce.jar}"/>
+	<pathelement location="${hadoop.cdh3.core.jar}"/>
+    <pathelement location="${hadoop.cdh3.hdfs.jar}"/>
     <pathelement location="${build.dir.hive}/classes"/>
     <fileset dir="${hive.root}" includes="hive_*.jar"/>
     <fileset dir="${hive.root}/lib" includes="*.jar"/>
@@ -249,9 +254,6 @@
       <fileset file="${build.dir.hive}/contrib/hive_contrib.jar"/>
       <fileset file="${build.dir.hive}/protobufRIO/protobufRIO.jar"/>
       <fileset file="${build.dir.hive}/recordio/recordio.jar"/>
-    </copy>
-    <copy todir="${target.auxlib.dir}" preservelastmodified="true" flatten="true">
-        <fileset dir="${hive.root}/auxlib" includes="*.jar" excludes="**/.svn"/>
     </copy>
     <copy todir="${target.example.dir}/files" preservelastmodified="true" flatten="true">
       <fileset dir="${test.data.dir}/files" includes="*.*" excludes="**/.svn"/>

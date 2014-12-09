@@ -38,6 +38,7 @@ import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.exec.FilterOperator;
 import org.apache.hadoop.hive.ql.exec.GroupByOperator;
 import org.apache.hadoop.hive.ql.exec.JoinOperator;
+import org.apache.hadoop.hive.ql.exec.LateralViewForwardOperator;
 import org.apache.hadoop.hive.ql.exec.LimitOperator;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
@@ -177,6 +178,8 @@ public class ColumnPrunerProcFactory {
           prunedColList = Utilities.mergeUniqElems(prunedColList,
               param.getCols());
         }
+        if(params.size() == 0)
+          AnalysisColCount++;
       }
     }
 
@@ -385,7 +388,8 @@ public class ColumnPrunerProcFactory {
               || (child instanceof ScriptOperator)
               || (child instanceof UDTFOperator)
               || (child instanceof LimitOperator)
-              || (child instanceof UnionOperator)) {
+              || (child instanceof UnionOperator)
+              || (child instanceof LateralViewForwardOperator)) {
             cppCtx.getPrunedColLists()
                 .put(op, cppCtx.getColsFromSelectExpr(op));
             return null;

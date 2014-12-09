@@ -11,7 +11,7 @@ INSERT TABLE nulltest2 SELECT * FROM nulltest;
 
 EXPLAIN SELECT * FROM nulltest2 WHERE int_data1 = 1 or int_data1 = 2;
 
-SELECT * FROM nulltest2 WHERE int_data1 = 1 or int_data1 = 2;
+SELECT * FROM nulltest2 WHERE int_data1 = 1 or int_data1 = 2 order by int_data1,int_data2,double_data;
 
 DROP TABLE nulltest;
 DROP TABLE nulltest2; 

@@ -9,7 +9,7 @@ if [ $# -ne 8 ]
 then
     echo "Usage: sh $0 Url User Passwd DBName TableName UserName protofile protoversion"
     echo "for example:
-		      makejar.sh jdbc:postgresql://localhost:5432/pbjar tdwmeta tdwmeta default_db person root person.proto 2.3.0"
+		      makejar.sh jdbc:postgresql://localhost:5432/pbjar tdwmeta tdwmeta default_db person root person.proto 2.5.0"
     exit 1
 fi
 
@@ -21,6 +21,15 @@ TableName=$5
 UserName=$6
 FileName=$7
 ProtoVersion=$8
+
+protoc_version="$(protoc --version | sed 's/libprotoc //g')"
+
+if [[ "$protoc_version" = "$ProtoVersion" ]];then
+	true
+else
+	echo "error! expect protobuf version $ProtoVersion,but get $protoc_version!"
+	exit 7
+fi
 
 cd $HIVE_HOME 
 
@@ -63,7 +72,7 @@ then
     exit 4
 fi
 
-javac -classpath ./lib/protobuf-java-2.3.0.jar ./protobuf/tdw/*.java
+javac -classpath ./lib/protobuf-java-${ProtoVersion}.jar ./protobuf/tdw/*.java
 if [ $? -ne 0 ]
 then 
     rm -rf $HIVE_HOME/protobuf/upload/${UserName}/*.proto

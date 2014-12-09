@@ -41,7 +41,7 @@
                     <void property="aliasToWork"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10006</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10006</string> 
                        <object id="TableScanOperator0" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
                         <void property="childOperators"> 
                          <object class="java.util.ArrayList"> 
@@ -251,10 +251,10 @@
                     <void property="pathToAliases"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10006</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10006</string> 
                        <object class="java.util.ArrayList"> 
                         <void method="add"> 
-                         <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10006</string> 
+                         <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10006</string> 
                         </void> 
                        </object> 
                       </void> 
@@ -263,7 +263,7 @@
                     <void property="pathToPartitionInfo"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10006</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10006</string> 
                        <object class="org.apache.hadoop.hive.ql.plan.partitionDesc"> 
                         <void property="tableDesc"> 
                          <object id="tableDesc2" class="org.apache.hadoop.hive.ql.plan.tableDesc"> 
@@ -316,7 +316,7 @@
                             </void> 
                             <void method="put"> 
                              <string>location</string> 
-                             <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/dest1</string> 
+                             <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/dest1</string> 
                             </void> 
                             <void method="put"> 
                              <string>db</string> 
@@ -342,7 +342,7 @@
                           <void property="conf"> 
                            <object class="org.apache.hadoop.hive.ql.plan.fileSinkDesc"> 
                             <void property="dirName"> 
-                             <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10000</string> 
+                             <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10000</string> 
                             </void> 
                             <void property="tableInfo"> 
                              <object class="org.apache.hadoop.hive.ql.plan.tableDesc"> 
@@ -391,7 +391,7 @@
                                 </void> 
                                 <void method="put"> 
                                  <string>location</string> 
-                                 <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/dest1</string> 
+                                 <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/dest1</string> 
                                 </void> 
                                 <void method="put"> 
                                  <string>file.outputformat</string> 
@@ -495,13 +495,13 @@
                    <boolean>true</boolean> 
                   </void> 
                   <void property="sourceDir"> 
-                   <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10000</string> 
+                   <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10000</string> 
                   </void> 
                   <void property="table"> 
                    <object idref="tableDesc2"/> 
                   </void> 
                   <void property="tmpDir"> 
-                   <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10001</string> 
+                   <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10001</string> 
                   </void> 
                  </object> 
                 </void> 
@@ -522,10 +522,10 @@
                <boolean>true</boolean> 
               </void> 
               <void property="sourceDir"> 
-               <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10006</string> 
+               <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10006</string> 
               </void> 
               <void property="targetDir"> 
-               <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10000</string> 
+               <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10000</string> 
               </void> 
              </object> 
             </void> 
@@ -551,7 +551,7 @@
       <void property="resolverCtx"> 
        <object class="org.apache.hadoop.hive.ql.plan.ConditionalResolverMergeFiles$ConditionalResolverMergeFilesCtx"> 
         <void property="dir"> 
-         <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10006</string> 
+         <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10006</string> 
         </void> 
         <void property="listTasks"> 
          <object idref="ArrayList0"/> 
@@ -612,7 +612,7 @@
                     <void property="aliasToWork"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10007</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10007</string> 
                        <object id="TableScanOperator1" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
                         <void property="childOperators"> 
                          <object class="java.util.ArrayList"> 
@@ -814,10 +814,10 @@
                     <void property="pathToAliases"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10007</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10007</string> 
                        <object class="java.util.ArrayList"> 
                         <void method="add"> 
-                         <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10007</string> 
+                         <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10007</string> 
                         </void> 
                        </object> 
                       </void> 
@@ -826,7 +826,7 @@
                     <void property="pathToPartitionInfo"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10007</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10007</string> 
                        <object class="org.apache.hadoop.hive.ql.plan.partitionDesc"> 
                         <void property="tableDesc"> 
                          <object id="tableDesc5" class="org.apache.hadoop.hive.ql.plan.tableDesc"> 
@@ -879,7 +879,7 @@
                             </void> 
                             <void method="put"> 
                              <string>location</string> 
-                             <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/dest2</string> 
+                             <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/dest2</string> 
                             </void> 
                             <void method="put"> 
                              <string>db</string> 
@@ -905,7 +905,7 @@
                           <void property="conf"> 
                            <object class="org.apache.hadoop.hive.ql.plan.fileSinkDesc"> 
                             <void property="dirName"> 
-                             <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10002</string> 
+                             <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10002</string> 
                             </void> 
                             <void property="tableInfo"> 
                              <object class="org.apache.hadoop.hive.ql.plan.tableDesc"> 
@@ -954,7 +954,7 @@
                                 </void> 
                                 <void method="put"> 
                                  <string>location</string> 
-                                 <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/dest2</string> 
+                                 <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/dest2</string> 
                                 </void> 
                                 <void method="put"> 
                                  <string>file.outputformat</string> 
@@ -1058,13 +1058,13 @@
                    <boolean>true</boolean> 
                   </void> 
                   <void property="sourceDir"> 
-                   <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10002</string> 
+                   <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10002</string> 
                   </void> 
                   <void property="table"> 
                    <object idref="tableDesc5"/> 
                   </void> 
                   <void property="tmpDir"> 
-                   <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10003</string> 
+                   <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10003</string> 
                   </void> 
                  </object> 
                 </void> 
@@ -1085,10 +1085,10 @@
                <boolean>true</boolean> 
               </void> 
               <void property="sourceDir"> 
-               <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10007</string> 
+               <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10007</string> 
               </void> 
               <void property="targetDir"> 
-               <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10002</string> 
+               <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10002</string> 
               </void> 
              </object> 
             </void> 
@@ -1114,7 +1114,7 @@
       <void property="resolverCtx"> 
        <object class="org.apache.hadoop.hive.ql.plan.ConditionalResolverMergeFiles$ConditionalResolverMergeFilesCtx"> 
         <void property="dir"> 
-         <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10007</string> 
+         <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10007</string> 
         </void> 
         <void property="listTasks"> 
          <object idref="ArrayList1"/> 
@@ -1199,7 +1199,7 @@
            </void> 
            <void method="put"> 
             <string>location</string> 
-            <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/src</string> 
+            <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/src</string> 
            </void> 
           </object> 
          </void> 
@@ -1234,7 +1234,7 @@
                        <int>1</int> 
                       </void> 
                       <void property="dirName"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10006</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10006</string> 
                       </void> 
                       <void property="tableInfo"> 
                        <object idref="tableDesc2"/> 
@@ -1461,7 +1461,7 @@
                        <int>2</int> 
                       </void> 
                       <void property="dirName"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1338484734/10007</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_1216699477/10007</string> 
                       </void> 
                       <void property="tableInfo"> 
                        <object idref="tableDesc5"/> 
@@ -1701,106 +1701,10 @@
                        <int>3</int> 
                       </void> 
                       <void property="dirName"> 
-                       <string>file:/data/michealxu/qe/build/ql/tmp/1715908419/10004</string> 
+                       <string>file:/data/allison/tdw_src/src/qe/build/ql/tmp/allison_201411210306_0.8495399292915568_-1_521499331/10004</string> 
                       </void> 
                       <void property="exprTrees"> 
-                       <object class="java.util.ArrayList"> 
-                        <void method="add"> 
-                         <null/> 
-                        </void> 
-                        <void method="add"> 
-                         <object class="org.apache.hadoop.hive.ql.plan.RangePartitionExprTree"> 
-                          <void property="exprs"> 
-                           <object class="java.util.ArrayList"> 
-                            <void method="add"> 
-                             <object class="org.apache.hadoop.hive.ql.plan.exprNodeGenericFuncDesc"> 
-                              <void property="childExprs"> 
-                               <object class="java.util.ArrayList"> 
-                                <void method="add"> 
-                                 <object class="org.apache.hadoop.hive.ql.plan.exprNodeConstantDesc"> 
-                                  <void property="typeInfo"> 
-                                   <object idref="PrimitiveTypeInfo1"/> 
-                                  </void> 
-                                  <void property="value"> 
-                                   <string>12</string> 
-                                  </void> 
-                                 </object> 
-                                </void> 
-                                <void method="add"> 
-                                 <object id="exprNodeColumnDesc4" class="org.apache.hadoop.hive.ql.plan.exprNodeColumnDesc"> 
-                                  <void property="column"> 
-                                   <string>_col3</string> 
-                                  </void> 
-                                  <void property="tabAlias"> 
-                                   <string></string> 
-                                  </void> 
-                                  <void property="typeInfo"> 
-                                   <object idref="PrimitiveTypeInfo1"/> 
-                                  </void> 
-                                 </object> 
-                                </void> 
-                               </object> 
-                              </void> 
-                              <void property="genericUDF"> 
-                               <object class="org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge"> 
-                                <void property="operator"> 
-                                 <boolean>true</boolean> 
-                                </void> 
-                                <void property="udfClass"> 
-                                 <class>org.apache.hadoop.hive.ql.udf.UDFComparison</class> 
-                                </void> 
-                                <void property="udfName"> 
-                                 <string>comparison</string> 
-                                </void> 
-                               </object> 
-                              </void> 
-                              <void property="typeInfo"> 
-                               <object idref="PrimitiveTypeInfo2"/> 
-                              </void> 
-                             </object> 
-                            </void> 
-                            <void method="add"> 
-                             <object class="org.apache.hadoop.hive.ql.plan.exprNodeGenericFuncDesc"> 
-                              <void property="childExprs"> 
-                               <object class="java.util.ArrayList"> 
-                                <void method="add"> 
-                                 <object class="org.apache.hadoop.hive.ql.plan.exprNodeConstantDesc"> 
-                                  <void property="typeInfo"> 
-                                   <object idref="PrimitiveTypeInfo1"/> 
-                                  </void> 
-                                  <void property="value"> 
-                                   <string>24</string> 
-                                  </void> 
-                                 </object> 
-                                </void> 
-                                <void method="add"> 
-                                 <object idref="exprNodeColumnDesc4"/> 
-                                </void> 
-                               </object> 
-                              </void> 
-                              <void property="genericUDF"> 
-                               <object class="org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge"> 
-                                <void property="operator"> 
-                                 <boolean>true</boolean> 
-                                </void> 
-                                <void property="udfClass"> 
-                                 <class>org.apache.hadoop.hive.ql.udf.UDFComparison</class> 
-                                </void> 
-                                <void property="udfName"> 
-                                 <string>comparison</string> 
-                                </void> 
-                               </object> 
-                              </void> 
-                              <void property="typeInfo"> 
-                               <object idref="PrimitiveTypeInfo2"/> 
-                              </void> 
-                             </object> 
-                            </void> 
-                           </object> 
-                          </void> 
-                         </object> 
-                        </void> 
-                       </object> 
+                       <object class="java.util.ArrayList"/> 
                       </void> 
                       <void property="partKeys"> 
                        <object class="java.util.ArrayList"> 
@@ -1818,7 +1722,17 @@
                          </object> 
                         </void> 
                         <void method="add"> 
-                         <object idref="exprNodeColumnDesc4"/> 
+                         <object class="org.apache.hadoop.hive.ql.plan.exprNodeColumnDesc"> 
+                          <void property="column"> 
+                           <string>_col3</string> 
+                          </void> 
+                          <void property="tabAlias"> 
+                           <string></string> 
+                          </void> 
+                          <void property="typeInfo"> 
+                           <object idref="PrimitiveTypeInfo1"/> 
+                          </void> 
+                         </object> 
                         </void> 
                        </object> 
                       </void> 
@@ -1961,7 +1875,7 @@
                           </void> 
                           <void method="put"> 
                            <string>location</string> 
-                           <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/dest3</string> 
+                           <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/dest3</string> 
                           </void> 
                           <void method="put"> 
                            <string>db</string> 
@@ -2072,7 +1986,7 @@
                   </void> 
                   <void method="put"> 
                    <string>_col0</string> 
-                   <object id="exprNodeColumnDesc5" class="org.apache.hadoop.hive.ql.plan.exprNodeColumnDesc"> 
+                   <object id="exprNodeColumnDesc4" class="org.apache.hadoop.hive.ql.plan.exprNodeColumnDesc"> 
                     <void property="column"> 
                      <string>key</string> 
                     </void> 
@@ -2091,7 +2005,7 @@
                   <void property="colList"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
-                     <object idref="exprNodeColumnDesc5"/> 
+                     <object idref="exprNodeColumnDesc4"/> 
                     </void> 
                     <void method="add"> 
                      <object idref="exprNodeConstantDesc2"/> 
@@ -2271,7 +2185,7 @@
     <void property="pathToAliases"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/src</string> 
+       <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/src</string> 
        <object class="java.util.ArrayList"> 
         <void method="add"> 
          <string>default_db/src</string> 
@@ -2283,7 +2197,7 @@
     <void property="pathToPartitionInfo"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>file:/data/michealxu/qe/build/ql/test/data/warehouse/default_db/src</string> 
+       <string>file:/data/allison/tdw_src/src/qe/build/ql/test/data/warehouse/default_db/src</string> 
        <object class="org.apache.hadoop.hive.ql.plan.partitionDesc"> 
         <void property="tableDesc"> 
          <object class="org.apache.hadoop.hive.ql.plan.tableDesc"> 

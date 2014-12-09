@@ -25,7 +25,7 @@ public class partitionSinkDesc extends fileSinkDesc {
   private ArrayList<String> partTypeInfos;
   private ArrayList<String> partTypes;
   private ArrayList<PartSpaceSpec> partSpaces;
-  private ArrayList<RangePartitionExprTree> exprTrees;
+  transient private ArrayList<RangePartitionExprTree> exprTrees;
 
   private InsertPartDesc insertPartDesc = null;
 
@@ -46,7 +46,8 @@ public class partitionSinkDesc extends fileSinkDesc {
     this.partKeys = partKeys;
     this.partSpaces = partSpaces;
     this.partTypeInfos = partTypeInfos;
-    this.exprTrees = exprTrees;
+    //this.exprTrees = exprTrees;
+    this.exprTrees = new ArrayList<RangePartitionExprTree>();
     this.insertPartDesc = insertPartDesc;
   }
 
@@ -63,7 +64,8 @@ public class partitionSinkDesc extends fileSinkDesc {
     this.partKeys = partKeys;
     this.partSpaces = partSpaces;
     this.partTypeInfos = partTypeInfos;
-    this.exprTrees = exprTrees;
+    //this.exprTrees = exprTrees;
+    this.exprTrees = new ArrayList<RangePartitionExprTree>();
   }
 
   @explain(displayName = "insert partition desc")

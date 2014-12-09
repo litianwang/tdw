@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -38,6 +39,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.sql.XAConnection;
@@ -61,7 +63,6 @@ import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.api.AddPartitionDesc;
 import org.apache.hadoop.hive.metastore.api.AddSerdeDesc;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
-
 import org.apache.hadoop.hive.metastore.api.ColumnInfo;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.DbPriv;
@@ -89,7 +90,6 @@ import org.apache.hadoop.hive.metastore.api.tdw_query_stat;
 import org.apache.hadoop.hive.metastore.api.tdw_sys_fields_statistics;
 import org.apache.hadoop.hive.metastore.api.tdw_sys_table_statistics;
 import org.apache.hadoop.hive.metastore.model.MGroup;
-
 import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.MetadataTypedColumnsetSerDe;
@@ -173,7 +173,48 @@ public class JDBCStore implements RawStore, Configurable {
   public static boolean poolEnable = false;
   public static int timeout = 10;
   private static SyncDBRouterThread syncer = null;
+  private static boolean masterForRead = false;
+  
+  private static Map<String, Vector<String>> masterToSlave = new ConcurrentHashMap<String, Vector<String>>();
 
+  public static void initMasterToSlaveMap(Configuration conf){
+    masterForRead = conf.getBoolean("hive.metastore.master.read", true);
+    String [] masterurls = conf.getStrings("hive.metastore.master.urls");
+    if(masterurls == null){
+      return;
+    }
+    
+    for(int i = 0; i < masterurls.length; i++){
+      String [] slaveurls = conf.getStrings("hive.metastore.slave.urls." + masterurls[i]);
+      if(slaveurls == null){
+        continue;
+      }
+      Vector<String> slaves = new Vector<String>();
+      for(int j = 0 ; j < slaveurls.length; j++){
+        slaves.add(slaveurls[j]);
+      }
+      
+      if(masterForRead){
+        slaves.add(masterurls[i]);
+      }
+      
+      masterToSlave.put(masterurls[i], slaves);
+    }
+  }
+  
+  public static String getUrlForRead(String url){
+    JDBCUrl jdbcUrl = new JDBCUrl(url);
+    Vector<String> slaveurls = masterToSlave.get(jdbcUrl.getHost());
+    if(slaveurls == null || slaveurls.isEmpty()){
+      return url;
+    }
+    
+    Random r = new Random();
+    int index = r.nextInt(100000000) % slaveurls.size();
+    return "jdbc:" + jdbcUrl.getDriver() + "://" + slaveurls.get(index) 
+          + ":" + jdbcUrl.getPort() + "/" + jdbcUrl.getDB();
+  }
+  
   public static int fnv1a32db(byte[] buf, int offset, int len) {
     long seed = 0x811c9dc5L;
     for (int i = offset; i < offset + len; i++) {
@@ -484,6 +525,18 @@ public class JDBCStore implements RawStore, Configurable {
       throw new MetaStoreConnectException("Can not find segment db, db=" + dbName);
     } else {
       return getConnectionFromPool(url);
+    }
+  }
+  
+  public static Connection getSegmentConnectionForRead(String dbName) 
+      throws MetaStoreConnectException, SQLException {
+    String url = getSegmentDBURL(dbName);
+    String readUrl = getUrlForRead(url);
+    LOG.info("XXXXXXXXXXXreadUrl = " + readUrl);
+    if (readUrl == null) {  
+      throw new MetaStoreConnectException("Can not find segment db, db=" + dbName);
+    } else {  
+      return getConnectionFromPool(readUrl);
     }
   }
 
@@ -1688,6 +1741,18 @@ public class JDBCStore implements RawStore, Configurable {
       ps.close();
 
       LOG.debug("5  insert into parameters");
+      
+      boolean createExtDirIfNotExist = true;
+      if(tbl.getParametersSize() > 0){
+        String createExtDirIfNotExistStr = tbl.getParameters().get("hive.exttable.createdir.ifnotexist");
+        LOG.info("XXcreateExtDirIfNotExistStr=" + createExtDirIfNotExistStr);
+        if(createExtDirIfNotExistStr != null && createExtDirIfNotExistStr.equalsIgnoreCase("false")){
+          createExtDirIfNotExist = false;
+        }
+        tbl.getParameters().remove("hive.exttable.createdir.ifnotexist");
+      }
+      
+      
       if (tbl.getParametersSize() > 0 || sd.getParametersSize() > 0
           || sd.getSerdeInfo().getParametersSize() > 0
           || sd.getNumBuckets() > -1) {
@@ -1780,7 +1845,8 @@ public class JDBCStore implements RawStore, Configurable {
       }
 
       LOG.debug("make hdfs directory for table");
-      if (tblPath != null) {
+      
+      if (createExtDirIfNotExist && tblPath != null) {
         if (!wh.isDir(tblPath)) {
           if (!wh.mkdirs(tblPath)) {
             throw new MetaException(tblPath
@@ -2047,7 +2113,7 @@ public class JDBCStore implements RawStore, Configurable {
     tableName = tableName.toLowerCase();
 
     try {
-      con = getSegmentConnection(dbName);
+      con = getSegmentConnectionForRead(dbName);
     } catch (MetaStoreConnectException e1) {
       LOG.error("get table error, db=" + dbName + ", tbl=" + tableName
           + ", msg=" + e1.getMessage());
@@ -2783,10 +2849,15 @@ public class JDBCStore implements RawStore, Configurable {
         ps.executeBatch();
         
         if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
-	        for (String partName : partToAdd) {
-	          pathToMake.addAll(wh.getPriPartitionPaths(dbName, tblName, partName,
-	              subPartNameSet));
-	        }
+          for (String partName : partToAdd) {
+            if(tblLocation == null || tblLocation.trim().isEmpty()){
+              pathToMake.addAll(wh.getPriPartitionPaths(dbName, tblName, partName,
+                  subPartNameSet));              
+            }else{
+              pathToMake.addAll(Warehouse.getPriPartitionPaths(new Path(tblLocation), partName,
+                  subPartNameSet));
+            }
+          }
         }
         else{
 	        for (String partName : partToAdd) {
@@ -3019,10 +3090,15 @@ public class JDBCStore implements RawStore, Configurable {
         ps.executeBatch();
         
         if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
-	        for (String partName : partToAdd) {
-	          pathToMake.addAll(wh.getSubPartitionPaths(dbName, tblName,
-	              partNameSet, partName));
-	        }
+          for (String partName : partToAdd) {
+            if(tblLocation == null || tblLocation.trim().isEmpty()){
+              pathToMake.addAll(wh.getSubPartitionPaths(dbName, tblName,
+                  partNameSet, partName));              
+            }else{
+              pathToMake.addAll(Warehouse.getSubPartitionPaths(new Path(tblLocation),
+                  partNameSet, partName));              
+            }
+          }
         }
         else{
 	        for (String partName : partToAdd) {
@@ -3297,7 +3373,11 @@ public class JDBCStore implements RawStore, Configurable {
         
         if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
 	        for (String del : existsParts) {
-	          pathToDel.add(wh.getPartitionPath(dbName, tblName, del));
+	          if(tblLocation == null || tblLocation.trim().isEmpty()){
+	            pathToDel.add(wh.getPartitionPath(dbName, tblName, del));
+	          }else{
+	            pathToDel.add(Warehouse.getPartitionPath(new Path(tblLocation), del));
+	          }
 	        }
         }
         else{
@@ -3404,10 +3484,15 @@ public class JDBCStore implements RawStore, Configurable {
         pathToDel = new ArrayList<Path>();
         
         if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
-	        for (String str : existsParts) {
-	            pathToDel.addAll(wh.getSubPartitionPaths(dbName, tblName,
-	                priPartNameSet, str));
-	        }
+          for (String str : existsParts) {
+            if(tblLocation == null || tblLocation.trim().isEmpty()){
+              pathToDel.addAll(wh.getSubPartitionPaths(dbName, tblName,
+                  priPartNameSet, str));
+            }else{
+              pathToDel.addAll(Warehouse.getSubPartitionPaths(new Path(tblLocation),
+                  priPartNameSet, str));
+            }
+          }
         }
         else{
             //for (String str : existsParts) {
@@ -3620,8 +3705,13 @@ public class JDBCStore implements RawStore, Configurable {
         pss.executeUpdate();
         
         if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
-	        pathToMake.addAll(wh.getPriPartitionPaths(dbName, tblName, "default",
-	            subPartNameSet));
+          if(tblLocation == null || tblLocation.trim().isEmpty()){
+            pathToMake.addAll(wh.getPriPartitionPaths(dbName, tblName, "default",
+                subPartNameSet));            
+          }else{
+            pathToMake.addAll(Warehouse.getPriPartitionPaths(new Path(tblLocation), "default",
+                subPartNameSet));
+          }
         }
         else{
         	pathToMake.addAll(Warehouse.getPriPartitionPaths(new Path(tblLocation), "default",
@@ -3736,8 +3826,13 @@ public class JDBCStore implements RawStore, Configurable {
         pss.executeUpdate();
         
         if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
-        	pathToMake.addAll(wh.getSubPartitionPaths(dbName, tblName, partNameSet,
-            	"default"));
+          if(tblLocation == null || tblLocation.trim().isEmpty()){
+            pathToMake.addAll(wh.getSubPartitionPaths(dbName, tblName, partNameSet,
+                "default"));
+          }else{
+            pathToMake.addAll(Warehouse.getSubPartitionPaths(new Path(tblLocation),
+                partNameSet, "default"));
+          }
         }
         else{
 		    pathToMake.addAll(Warehouse.getSubPartitionPaths(new Path(tblLocation),
@@ -3911,7 +4006,11 @@ public class JDBCStore implements RawStore, Configurable {
         {
           pathToDel = new ArrayList<Path>();
           if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
+            if(tblLocation == null || tblLocation.trim().isEmpty()){
               pathToDel.add(wh.getPartitionPath(dbName, tblName, "default"));
+            }else{
+              pathToDel.add(Warehouse.getPartitionPath(new Path(tblLocation), "default"));
+            }
           }
           else{
         	  //pathToDel.add(Warehouse.getPartitionPath(new Path(tblLocation), "default"));
@@ -4000,8 +4099,13 @@ public class JDBCStore implements RawStore, Configurable {
         {
           pathToDel = new ArrayList<Path>();
           if(!tblType.equalsIgnoreCase("EXTERNAL_TABLE")){
-	          pathToDel.addAll(wh.getSubPartitionPaths(dbName, tblName,
-	              priPartNameSet, "default"));
+            if(tblLocation == null || tblLocation.trim().isEmpty()){
+              pathToDel.addAll(wh.getSubPartitionPaths(dbName, tblName,
+                  priPartNameSet, "default"));
+            }else{
+              pathToDel.addAll(Warehouse.getSubPartitionPaths(new Path(tblLocation),
+                  priPartNameSet, "default"));
+            }
           }
           else{
 	          //pathToDel.addAll(Warehouse.getSubPartitionPaths(new Path(tblLocation),
@@ -4228,7 +4332,8 @@ public class JDBCStore implements RawStore, Configurable {
         }
 
         wh = new Warehouse(hiveConf);
-        newLocation = wh.getDefaultTablePath(dbName, newName).toString();
+//        newLocation = wh.getDefaultTablePath(dbName, newName).toString();
+        newLocation = oldLocation.substring(0, oldLocation.length()-tblName.length()) + newName;
 
         sql = "update tbls set tbl_name='" + newName + "', tbl_location='"
             + newLocation + "'" + " where tbl_id=" + tblID;
@@ -4530,7 +4635,8 @@ public class JDBCStore implements RawStore, Configurable {
       }
 
       Warehouse wh = new Warehouse(hiveConf);
-      newLocation = wh.getDefaultTablePath(dbName, newName).toString();
+//      newLocation = wh.getDefaultTablePath(dbName, newName).toString();
+      newLocation = oldLocation.substring(0, oldLocation.length()-tblName.length()) + newName;
 
       ps = con
           .prepareStatement("update tbls set tbl_name=?, tbl_location=? where tbl_id=?");
@@ -12411,6 +12517,77 @@ public class JDBCStore implements RawStore, Configurable {
   @Override
   public boolean createDatabase(Database db, String slaveURL)
       throws MetaException {
+    return false;
+  }
+  
+  @Override
+  public boolean hasAuthOnLocation(String who, String location)
+      throws NoSuchObjectException, MetaException {
+    Connection con = null;
+    Statement ps = null;
+    who = who.toLowerCase();
+    
+    try {
+      con = getGlobalConnection();
+    } catch (MetaStoreConnectException e1) {
+      LOG.error("audit error, user=" + user + ", msg=" + e1.getMessage());
+      throw new MetaException(e1.getMessage());
+    } catch (SQLException e1) {
+      LOG.error("audit error, user=" + user + ", msg=" + e1.getMessage());
+      throw new MetaException(e1.getMessage());
+    }
+    
+    try {
+      ps = con.createStatement();
+
+      String sql = "select group_name from tdwuser where tdwuser.user_name='"
+          + who.toLowerCase() + "'";
+
+      ResultSet re = ps.executeQuery(sql);
+      boolean isUserFind = false;
+      List<String> groups = new LinkedList<String>();
+
+      while (re.next()) {
+        isUserFind = true;
+        groups.add(re.getString(1));
+      }
+      
+      re.close();
+
+      if (!isUserFind) {
+        throw new NoSuchObjectException("can not find user:" + who);
+      }
+      
+      if (!location.endsWith("/"))
+        location += "/";
+
+      String local = "";
+      for (String group : groups) {
+        if (group == null || group.equals(""))
+          continue;
+        sql = "select location from tdw_group_location where group_name='" + group.trim() + "'";
+        re = ps.executeQuery(sql);
+        while (re.next()) {
+          local = re.getString(1);
+          if (local != null && !local.equals("")) {
+            local = local.trim();
+    		    if (location.startsWith(local)) {
+      			  re.close();
+      			  return true;
+    		    }
+          }
+        }
+        re.close();
+      }
+    } catch (SQLException sqlex) {
+      LOG.error("get user error, user=" + user + ", msg=" + sqlex.getMessage());
+      sqlex.printStackTrace();
+      throw new MetaException(sqlex.getMessage());
+    } finally {
+      closeStatement(ps);
+      closeConnection(con);
+    }
+    
     return false;
   }
 

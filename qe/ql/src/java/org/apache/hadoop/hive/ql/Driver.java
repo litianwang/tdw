@@ -43,6 +43,8 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Schema;
+import org.apache.hadoop.hive.metastore.api.tdw_query_error_info;
+import org.apache.hadoop.hive.metastore.api.tdw_query_info;
 import org.apache.hadoop.hive.ql.parse.ACLSemanticAnalyzer;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
 import org.apache.hadoop.hive.ql.parse.DDLSemanticAnalyzer;
@@ -79,6 +81,7 @@ import org.apache.hadoop.hive.ql.plan.moveWork;
 import org.apache.hadoop.hive.ql.plan.partitionDesc;
 import org.apache.hadoop.hive.ql.plan.tableDesc;
 import org.apache.hadoop.hive.serde2.ByteStream;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.mapred.ClusterStatus;
@@ -137,6 +140,7 @@ public class Driver implements CommandProcessor {
   private List<Task<? extends Serializable>> moveTasks = new ArrayList<Task<? extends Serializable>>();
   private Map<String, InsertExeInfo> insertInfoMap = new HashMap<String, InsertExeInfo>();
 
+  Random rand = new Random();
   public boolean isAInsertQuery() {
     return moveTasks.size() > 0;
   }
@@ -791,6 +795,11 @@ public class Driver implements CommandProcessor {
         SessionState.get().ssLog(
             org.apache.hadoop.util.StringUtils.stringifyException(e));
       }
+      
+      String errStr = "FAILED: Error in semantic analysis: " + e.getMessage() + "\n"
+          + org.apache.hadoop.util.StringUtils.stringifyException(e);
+      insertErrorInfo(command, errStr);
+
       return (10);
     } catch (ParseException e) {
       console.printError("FAILED: Parse Error: " + e.getMessage(), "\n"
@@ -807,6 +816,11 @@ public class Driver implements CommandProcessor {
         SessionState.get().ssLog(
             org.apache.hadoop.util.StringUtils.stringifyException(e));
       }
+     
+      String errStr = "FAILED: Parse Error: " + e.getMessage() + "\n"
+          + org.apache.hadoop.util.StringUtils.stringifyException(e);
+      insertErrorInfo(command, errStr);
+      
       return (11);
     } catch (Exception e) {
       e.printStackTrace();
@@ -825,6 +839,11 @@ public class Driver implements CommandProcessor {
         SessionState.get().ssLog(
             org.apache.hadoop.util.StringUtils.stringifyException(e));
       }
+
+      String errStr = "FAILED: Unknown exception : " + e.getMessage() + "\n"
+          + org.apache.hadoop.util.StringUtils.stringifyException(e);
+      insertErrorInfo(command, errStr);
+
       return (12);
     }
   }
@@ -916,7 +935,29 @@ public class Driver implements CommandProcessor {
     conf.setVar(HiveConf.ConfVars.HIVEQUERYID, queryId);
     conf.setVar(HiveConf.ConfVars.HIVESESSIONID, sessionId);
     conf.setVar(HiveConf.ConfVars.HIVEQUERYSTRING, queryStr);
-
+    //for CLI mode
+    if (SessionState.get() != null && SessionState.get().getTdw_query_info() == null){
+    	SessionState ss = SessionState.get();	
+    	
+    	SessionState.get().setTdw_query_info(
+    			new tdw_query_info(
+      				  ss.getQueryId() + "_" + Integer.toString(rand.nextInt()),
+      				  ss.getUserName(),
+      				  ss.getSessionId(),
+      				  null,
+      				  null,
+      				  ss.getCmd(),
+      				  0,
+      				  null,
+      				  null,
+      				  null,//state
+      				  null,
+      				  null,
+      				  null,
+      				  ss.getDbName()
+      				  )
+    	);
+    }
     try {
       LOG.info(conf.getVar(HiveConf.ConfVars.HIVEQUERYID) + " Starting command: " + queryStr);
       if (SessionState.get() != null)
@@ -928,8 +969,9 @@ public class Driver implements CommandProcessor {
 
       LOG.debug("plan.getPlan() OK");
       for (PreExecute peh : getPreExecHooks()) {
-        peh.run(SessionState.get(), sem.getInputs(), sem.getOutputs(),
-            UserGroupInformation.getCurrentUGI());
+        peh.run(SessionState.get(), 
+            sem.getInputs(), sem.getOutputs(),
+            ShimLoader.getHadoopShims().getUGIForConf(conf));       
       }
 
       int jobs = countJobs(sem.getRootTasks());
@@ -941,31 +983,20 @@ public class Driver implements CommandProcessor {
 
       if (jobs > 0) {
         console.printInfo("Total MapReduce jobs = " + jobs);
-        if (SessionState.get() != null && (!(SessionState.get().getiscli()))) {
+        if (SessionState.get() != null /*&&& (!(SessionState.get().getiscli()))*/) {
           SessionState ss = SessionState.get();
           SessionState.get().ssLog("Total MapReduce jobs = " + jobs);
-          if (ss.updateTdw_query_info(jobs)) {
-        	
-            Hive db = Hive.get(conf);
-            try {
-              testinsert = db.add_tdw_query_info(ss.getTdw_query_info());
-            } catch (Exception e) {
-              testinsert = false;
-              e.printStackTrace();
-            }
-            if (!testinsert) {
-              LOG.info("add_tdw_query_info failed: "
-                  + ss.getTdw_query_info().getQueryId());
-            }
-
+          if (ss.updateTdw_query_info(jobs)) {	
             Connection cc = null;
             try {
               if (SessionState.get().getBIStore() != null) {
                 cc = ss.getBIStore().openConnect();
                 if (cc != null) {
-                  ss.getTdw_query_info().setQueryString(queryStr);
-                  ss.getBIStore().insertInfo(cc, ss.getTdw_query_info());
-                  ss.getBIStore().closeConnect(cc);
+                	ss.getTdw_query_info().setQueryId(ss.getQueryId() + "_" + Integer.toString(rand.nextInt()));
+                	ss.getTdw_query_info().setQueryString(queryStr);
+                	ss.getTdw_query_info().setDbName(SessionState.get().getDbName());
+                	ss.getBIStore().insertInfo(cc, ss.getTdw_query_info());
+                	ss.getBIStore().closeConnect(cc);
                 } else {
                   LOG.error("add_tdw_query_info into BI failed: "
                       + ss.getTdw_query_info().getQueryId());
@@ -1091,6 +1122,10 @@ public class Driver implements CommandProcessor {
                       "FAILED: Execution Error, return code " + exitVal
                           + " from " + tsk.getClass().getName());
 
+                String errStr = "FAILED: Execution Error, return code " + exitVal
+                    + " from " + tsk.getClass().getName();
+                insertErrorInfo(errStr);
+
                 if (SessionState.get() != null
                     && (plan.getPlan() instanceof DDLSemanticAnalyzer
                         || plan.getPlan() instanceof ACLSemanticAnalyzer || isCreateQuery)) {
@@ -1161,6 +1196,11 @@ public class Driver implements CommandProcessor {
             SessionState.get().ssLog(
                 "FAILED: Execution Error, return code " + exitVal + " from "
                     + tsk.getClass().getName());
+          
+          String errStr = "FAILED: Execution Error, return code " + exitVal
+              + " from " + tsk.getClass().getName();
+          insertErrorInfo(errStr);
+
           return 9;
         }
         tsk.setDone();
@@ -1241,6 +1281,10 @@ public class Driver implements CommandProcessor {
             org.apache.hadoop.util.StringUtils.stringifyException(e));
       }
 
+      String errStr = "FAILED: Unknown exception : " + e.getMessage() + "\n"
+          + org.apache.hadoop.util.StringUtils.stringifyException(e);
+      insertErrorInfo(errStr);
+
       cleanTmpPgDataFiles();
 
       return (12);
@@ -1255,7 +1299,7 @@ public class Driver implements CommandProcessor {
 
       cleanTmpDBDataFiles();
       if (SessionState.get() != null && jobnumber > 0
-          && (!(SessionState.get().getiscli()))) {
+          /*&& (!(SessionState.get().getiscli()))*/) {
         GregorianCalendar gc = new GregorianCalendar();
         String endtime = String.format("%1$4d%2$02d%3$02d%4$02d%5$02d%6$02d",
             gc.get(Calendar.YEAR), gc.get(Calendar.MONTH) + 1,
@@ -1269,18 +1313,6 @@ public class Driver implements CommandProcessor {
           boolean re = false;
           //in case cli
           if(ss.getTdw_query_info() != null){
-          try {
-            re = db.update_tdw_query_info(ss.getTdw_query_info().getQueryId(),
-                endtime, "finished");
-          } catch (Exception e) {
-            e.printStackTrace();
-            LOG.info("catch exception: " + e.getMessage());
-          }
-          if (!re) {
-            LOG.info("update_tdw_query_info failed: "
-                + ss.getTdw_query_info().getQueryId());
-          }
-
           Connection cc = null;
           try {
             if (SessionState.get().getBIStore() != null) {
@@ -1593,6 +1625,9 @@ public class Driver implements CommandProcessor {
         console.printError("FAILED: Unexpected IO exception : "
             + e.getMessage());
 
+        insertErrorInfo("FAILED: Unexpected IO exception : "
+            + e.getMessage());
+
         LOG.info("clean tmp pg data file");
         cleanTmpPgDataFiles();
 
@@ -1616,6 +1651,10 @@ public class Driver implements CommandProcessor {
     } catch (Exception e) {
       console.printError("FAILED: Unknown exception : " + e.getMessage(), "\n"
           + org.apache.hadoop.util.StringUtils.stringifyException(e));
+
+      insertErrorInfo("FAILED: Unknown exception : " + e.getMessage(), "\n"
+          + org.apache.hadoop.util.StringUtils.stringifyException(e));
+
       return (13);
     }
 
@@ -1663,5 +1702,127 @@ public class Driver implements CommandProcessor {
       }
     }
 
+  }
+  
+  private void insertErrorInfo(String command, String error) {
+    if (SessionState.get() != null) {
+      Connection cc = null;
+      SessionState ss = SessionState.get();
+      try {
+        if (ss.getBIStore() != null) {
+          cc = ss.getBIStore().openConnect();
+          if (cc != null) {
+        	  
+        	  //for CLI
+        	  if(ss.getTdw_query_info() == null){
+        		  ss.setTdw_query_info(new tdw_query_info(
+        				  ss.getQueryId()+ "_" + Integer.toString(rand.nextInt()),
+        				  ss.getUserName(),
+        				  ss.getSessionId(),
+        				  null,
+        				  null,
+        				  command,
+        				  0,
+        				  null,
+        				  null,
+        				  "error",
+        				  null,
+        				  null,
+        				  null,
+        				  ss.getDbName())
+        				  );
+        	  }
+            ss.getTdw_query_info().setDbName(ss.get().getDbName());
+            ss.getBIStore().insertInfo(cc, ss.getTdw_query_info());
+            
+            //for CLI mode
+            if(ss.getTdw_query_error_info() == null){
+            	ss.setTdw_query_error_info(new tdw_query_error_info(
+            			ss.getTdw_query_info().getQueryId(),
+            			ss.getTdw_query_info().getTaskid(),
+            			ss.getTdw_query_info().getStartTime(),
+            			ss.getTdw_query_info().getIp(),
+            			ss.getTdw_query_info().getPort(),
+            			ss.getTdw_query_info().getClientIp(),
+            			null,
+            			null
+            	));
+            }
+            
+            ss.getTdw_query_error_info().setErrorString(error);
+            int ret = ss.getBIStore().insertErrorInfo(cc, ss.getTdw_query_error_info());
+            ss.getBIStore().closeConnect(cc);
+          } else {
+            LOG.error("add_tdw_query_error_info into BI failed: "
+                + ss.getQueryId());
+          }
+        }
+      } catch (Exception e) {
+    	  e.printStackTrace();
+    	  ss.getBIStore().closeConnect(cc);
+    	  LOG.error("add_tdw_query_error_info into BI failed: "
+    			  + ss.getQueryId());
+      }
+    }
+  }
+  
+  private void insertErrorInfo(String error) {
+    if (SessionState.get() != null) {
+      Connection cc = null;
+      SessionState ss = SessionState.get();
+      try {
+        if (ss.getBIStore() != null) {
+          cc = ss.getBIStore().openConnect();
+          if (cc != null) { 
+        	  
+        	  //for CLI
+        	  if(ss.getTdw_query_info() == null){
+        		  ss.setTdw_query_info(new tdw_query_info(
+        				  ss.getQueryId() + "_" + Integer.toString(rand.nextInt()),
+        				  ss.getUserName(),
+        				  ss.getSessionId(),
+        				  null,
+        				  null,
+        				  ss.getCmd(),
+        				  0,
+        				  null,
+        				  null,
+        				  "error",
+        				  null,
+        				  null,
+        				  null,
+        				  ss.getDbName())
+        				  );
+        	  }
+        	  
+              //for CLI mode
+              if(ss.getTdw_query_error_info() == null){
+              	ss.setTdw_query_error_info(new tdw_query_error_info(
+              			ss.getTdw_query_info().getQueryId(),
+              			ss.getTdw_query_info().getTaskid(),
+              			ss.getTdw_query_info().getStartTime(),
+              			ss.getTdw_query_info().getIp(),
+              			ss.getTdw_query_info().getPort(),
+              			ss.getTdw_query_info().getClientIp(),
+              			null,
+              			null
+              	));
+              }             
+            ss.getTdw_query_error_info().setErrorString(error);
+            int ret = ss.getBIStore().insertErrorInfo(cc, ss.getTdw_query_error_info());
+            ss.getBIStore().closeConnect(cc);
+          } else {
+            LOG.error("add_tdw_query_error_info into BI failed: "
+                + ss.getQueryId());
+          }
+        }
+      } catch (Exception e) {
+          e.printStackTrace();
+    	  ss.getBIStore().closeConnect(cc);
+    	  LOG.error("add_tdw_query_error_info into BI failed: "
+    			  + ss.getQueryId());
+
+      }
+    }
   }
 }

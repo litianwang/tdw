@@ -28,6 +28,7 @@ import java.io.RandomAccessFile;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
+import java.net.Socket;
 import java.net.UnknownHostException;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -58,12 +59,16 @@ import org.apache.hadoop.hive.cli.CliSessionState;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.tdw_query_error_info;
 import org.apache.hadoop.hive.metastore.api.tdw_query_info;
+import org.apache.hadoop.hive.ql.PBJarTool;
 import org.apache.hadoop.hive.ql.history.HiveHistory.Keys;
 import org.apache.hadoop.hive.ql.history.HiveHistory.RecordTypes;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
 import com.google.protobuf.Descriptors.Descriptor;
@@ -150,6 +155,7 @@ public class HSSessionItem implements Comparable<HSSessionItem> {
   private final String sessionName;
 
   private String hostip = null;
+  private String clientip = null;
   private String conf_file_loc = SessionState.get().getConf()
       .getVar(HiveConf.ConfVars.NEWLOGPATH);
   private String sessionFileName;
@@ -159,6 +165,7 @@ public class HSSessionItem implements Comparable<HSSessionItem> {
   private int current_query_count = 0;
   private PrintWriter dayLogStream = null;
   private static final String DELIMITER = "|";
+  private tdw_query_error_info einfo = null;
 
   public static enum RecordTypes {
     QueryStart, QueryEnd, SessionEnd
@@ -477,7 +484,17 @@ public class HSSessionItem implements Comparable<HSSessionItem> {
     }
     if (localhost != null)
       hostip = localhost.getHostAddress();
-
+    
+    try {
+      TSocket tSocket = (TSocket) trans;
+      Socket socket = tSocket.getSocket();
+      InetAddress addr = socket.getInetAddress();
+      this.clientip = addr.getHostAddress();
+      l4j.debug("client address: " + addr.getHostAddress() + " client port: " + socket.getPort());
+    } catch (Exception e) {
+      l4j.debug("get IP, PORT failed in create session");
+    }
+    
     if ((conf_file_loc == null) || conf_file_loc.length() == 0) {
       return;
     }
@@ -517,7 +534,13 @@ public class HSSessionItem implements Comparable<HSSessionItem> {
     String taskid = SessionState.get().getConf().get("usp.param");
     return new tdw_query_info(getCurrnetQueryId(), getAuth().getUser(),
         getSessionName(), curr_starttime, "", curr_cmd, 0, hostip, taskid,
-        "running", null);
+        "running", null, getAuth().getPort() + "", clientip, getAuth().getDbName());
+  }
+  
+  public tdw_query_error_info getEInfo() {
+    String taskid = SessionState.get().getConf().get("usp.param");
+    return new tdw_query_error_info(getCurrnetQueryId(), taskid, null,
+        hostip, getAuth().getPort() + "", clientip, null, null);
   }
 
   public PrintWriter getCurrnetPrinter() {
@@ -1583,114 +1606,6 @@ public class HSSessionItem implements Comparable<HSSessionItem> {
     } else
       return false;
   }
-  
-  public void closeStatement(Statement stmt){
-    try{
-      stmt.close();
-    }
-    catch(Exception x){
-      
-    }
-  }
-  
-  public void closeConnection(Connection con){
-    try{
-      con.close();
-    }
-    catch(Exception x){
-      
-    }
-  }
-  
-  private String downloadjar(String DBName, String tableName)
-      throws HiveServerException {
-    l4j.info("download jar of " + DBName + "::" + tableName);
-    String newPath = null;
-    String modified_time = null;
-    String jarName = null;
-
-    String url = conf.get("hive.metastore.pbjar.url",
-        "jdbc:postgresql://10.136.130.102:5432/pbjar");
-    String user = conf.get("hive.metastore.user", "tdw");
-    String passwd = conf.get("hive.metastore.passwd", "tdw");
-    String protoVersion = conf.get("hive.protobuf.version", "2.3.0");
-
-    String driver = "org.postgresql.Driver";
-    ResultSet rs = null;
-    Connection connect = null;
-    PreparedStatement ps = null;
-    try {
-      Class.forName(driver).newInstance();
-    } catch (Exception e2) {
-      e2.printStackTrace();
-      throw new HiveServerException(e2.getMessage());
-    } 
-    
-    try {
-      connect = DriverManager.getConnection(url, user, passwd);
-
-      String processName = java.lang.management.ManagementFactory
-          .getRuntimeMXBean().getName();
-      String processID = processName.substring(0, processName.indexOf('@'));
-      String appinfo = "downloadjar_" + processID + "_"
-          + SessionState.get().getSessionName();
-      connect.setClientInfo("ApplicationName", appinfo);
-     
-      ps = connect
-        .prepareStatement("SELECT to_char(modified_time,'yyyymmddhh24miss') as modified_time, "
-        + "jar_file FROM pb_proto_jar WHERE db_name=? and tbl_name=? and protobuf_version=? order by modified_time desc limit 1");
-      ps.setString(1, DBName.toLowerCase());
-      ps.setString(2, tableName.toLowerCase());
-      ps.setString(3, protoVersion);
-      
-      rs = ps.executeQuery();
-      
-      byte[] fileBytes = new byte[16 * 1024 * 1024];
-      if (rs.next()) {
-        modified_time = rs.getString("modified_time");
-        jarName = DBName.toLowerCase() + "_" + tableName.toLowerCase() + "_"
-            + modified_time + ".jar";
-        newPath = "./auxlib/" + jarName;
-        File file = new File(newPath);
-       
-        if (!file.exists()) {
-          if (!file.createNewFile()){
-            l4j.error("Try to create file " + newPath + " failed.");
-            throw new HiveServerException("Try to create file " + newPath + " failed.");
-          }
-             
-          FileOutputStream outputStream = null;
-          try{
-            outputStream = new FileOutputStream(file);
-            InputStream iStream = rs.getBinaryStream("jar_file");
-            int size = 0;
-
-            while ((size = iStream.read(fileBytes)) != -1) {
-              System.out.println(size);
-              outputStream.write(fileBytes, 0, size);
-            }
-          }
-          finally{
-            outputStream.close();
-          }         
-        } else {
-          l4j.info("The jar file of " + jarName + " is the latest version.");
-        }
-      } else {
-        l4j.error("Can not find the jar file of " + jarName + " in the tPG.");
-        throw new HiveServerException("Can not find the jar file of " + jarName + " in the tPG.");
-      }     
-    } catch (Exception e2) {
-      e2.printStackTrace();
-      throw new HiveServerException(e2.getMessage());
-    }
-    finally{
-      closeStatement(ps);
-      closeConnection(connect);
-    }
-    
-    return modified_time;
-  }
 
   public String getPBTableModifiedTime(String DBName, String tableName)
       throws HiveServerException {
@@ -1787,10 +1702,16 @@ public class HSSessionItem implements Comparable<HSSessionItem> {
     String jar_path = null;
     l4j.info("dbName: " + DBName);
     l4j.info("tableName: " + tableName);
-    modified_time = downloadjar(DBName.toLowerCase(), tableName.toLowerCase());
+    try {
+      modified_time = PBJarTool.downloadjar(DBName.toLowerCase(), 
+          tableName.toLowerCase(), SessionState.get().getConf());
+    } catch (SemanticException e1) {
+      // TODO Auto-generated catch block
+      throw new HiveServerException(e1.getMessage());
+    }
     jar_path = getHome() + "/auxlib/" + DBName.toLowerCase() + "_"
         + tableName.toLowerCase() + "_" + modified_time + ".jar";
-    String full_name = protobufPackageName + "." + DBName.toLowerCase() + "_"
+    String full_name = PBJarTool.protobufPackageName + "." + DBName.toLowerCase() + "_"
         + tableName.toLowerCase() + "_" + modified_time + "$"
         + tableName.toLowerCase();
     boolean flag = SessionState.get().delete_resource(

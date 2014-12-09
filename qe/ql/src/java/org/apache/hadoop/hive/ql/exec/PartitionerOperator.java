@@ -13,6 +13,7 @@
 */
 package org.apache.hadoop.hive.ql.exec;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -29,12 +30,15 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator.FileSinkCount;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.InsertPartDesc;
 import org.apache.hadoop.hive.ql.parse.QB.PartRefType;
 import org.apache.hadoop.hive.ql.parse.TypeCheckProcFactory;
 import org.apache.hadoop.hive.ql.plan.PartValuesList;
+import org.apache.hadoop.hive.ql.plan.RangePartitionExprTree;
+import org.apache.hadoop.hive.ql.plan.exprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.exprNodeConstantDesc;
 import org.apache.hadoop.hive.ql.plan.exprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.fileSinkDesc;
@@ -105,6 +109,10 @@ public class PartitionerOperator extends TerminalOperator<partitionSinkDesc>
     partNames = new String[numPartKeys][];
     partitioners = new Partitioner[numPartKeys];
     numPartitionsEachLevel = new int[numPartKeys];
+    
+    ArrayList<RangePartitionExprTree> exprTrees = genRangePartitionExprTree();
+    partSinkDesc.setExprTrees(exprTrees);
+    
 
     insertPartDesc = partSinkDesc.getInsertPartDesc();
     if (insertPartDesc != null) {
@@ -174,7 +182,65 @@ public class PartitionerOperator extends TerminalOperator<partitionSinkDesc>
     Arrays.fill(targetPartitions, 0);
     initializeChildren(hconf);
   }
+  
+  private RangePartitionExprTree getRangePartitionExprTree(
+      String partKeyTypeName, exprNodeDesc partKey,
+      Map<String, PartValuesList> partSpace) {
+    TypeInfo partKeyType = TypeInfoFactory
+        .getPrimitiveTypeInfo(partKeyTypeName);
 
+    ObjectInspector stringOI = PrimitiveObjectInspectorFactory
+        .getPrimitiveJavaObjectInspector(PrimitiveCategory.STRING);
+    ObjectInspector valueOI = PrimitiveObjectInspectorFactory
+        .getPrimitiveWritableObjectInspector(((PrimitiveTypeInfo) partKeyType)
+            .getPrimitiveCategory());
+
+    ArrayList<exprNodeDesc> exprTree = new ArrayList<exprNodeDesc>();
+    for (Entry<String, PartValuesList> entry : partSpace.entrySet()) {
+      String partName = entry.getKey();
+      PartValuesList partValues = entry.getValue();
+
+      if (partName.equalsIgnoreCase("default")) {
+        exprTree.add(null);
+      } else {
+        ObjectInspectorConverters.Converter converter = ObjectInspectorConverters
+            .getConverter(stringOI, valueOI);
+        Object pv = converter.convert(partValues.getValues().get(0));
+        pv = ((PrimitiveObjectInspector) valueOI).getPrimitiveJavaObject(pv);
+
+        exprNodeDesc partValueDesc = new exprNodeConstantDesc(partKeyType, pv);
+        exprNodeDesc compareDesc = TypeCheckProcFactory.DefaultExprProcessor
+            .getFuncExprNodeDesc("comparison", partValueDesc, partKey);
+
+        exprTree.add(compareDesc);
+      }
+    }
+
+    return new RangePartitionExprTree(exprTree);
+  }
+
+  private ArrayList<RangePartitionExprTree> genRangePartitionExprTree(){
+    int partTotalLevel = numPartKeys;
+    ArrayList<RangePartitionExprTree> exprTrees = new ArrayList<RangePartitionExprTree>();
+    
+    for(int level = 0; level < partTotalLevel; level++){
+      String partType = partSinkDesc.getPartTypes().get(level);
+      //String partKeyType = partSinkDesc.getPartKeys().get(level).getTypeInfo().getTypeName();
+      //String partKeyName = partSinkDesc.getPartKeys().get(level).getExprString();
+      Map<String,PartValuesList> partSpace = partSinkDesc.getPartSpaces().get(level).getPartSpace();
+      exprNodeDesc partKeyDesc = partSinkDesc.getPartKeys().get(level);
+      String partKeyType = partKeyDesc.getTypeInfo().getTypeName();
+      
+      if (partType.equalsIgnoreCase("RANGE")) {
+        exprTrees.add(getRangePartitionExprTree(partKeyType,
+            partKeyDesc, partSpace));
+      } else {
+        exprTrees.add(null);
+      }
+    }
+    return exprTrees;
+  }
+  
   private Partitioner getRangePartitioner(int level) throws HiveException {
 
     ExprNodeEvaluator[] partEvaluators = new ExprNodeEvaluator[partSinkDesc
@@ -184,7 +250,7 @@ public class PartitionerOperator extends TerminalOperator<partitionSinkDesc>
     Map<String, PartValuesList> partSpace = partSinkDesc.getPartSpaces()
         .get(level).getPartSpace();
     ArrayList<exprNodeDesc> exprTree = partSinkDesc.getExprTrees().get(level)
-        .getExprs();
+        .getExprs();   
 
     for (String partName : partSpace.keySet()) {
       if (partName.equalsIgnoreCase("default")) {
@@ -206,8 +272,15 @@ public class PartitionerOperator extends TerminalOperator<partitionSinkDesc>
     }
 
     System.out.println("Total partiton is " + partition);
+    
+    int maxCacheSize = 10000;
+    if(config != null){
+      maxCacheSize = config.getInt(HiveConf.ConfVars.HIVE_EXEC_RANGEPART_CACHE_MAXSIZE.varname, 
+          HiveConf.ConfVars.HIVE_EXEC_RANGEPART_CACHE_MAXSIZE.defaultIntVal);
+    }
 
-    return new RangePartitioner(partEvaluators, defaultPart);
+    return new RangePartitioner(partKeyObjectInspectors[level],
+        partKeyFields[level], partEvaluators, defaultPart, maxCacheSize);
   }
 
   private Partitioner getListPartitioner(int level) throws HiveException {
@@ -406,7 +479,16 @@ public class PartitionerOperator extends TerminalOperator<partitionSinkDesc>
         
         
         FileSystem fs = (new Path(specTablePath)).getFileSystem(hconf);
-        FileStatus [] fsStats = fs.listStatus(new Path(specTablePath));
+        FileStatus [] fsStats = null;
+        try{
+          fsStats = fs.listStatus(new Path(specTablePath));
+        }
+        catch(FileNotFoundException fx){
+          LOG.info("can not find any partition path in " + specTablePath);
+          super.jobClose(hconf, success);
+          return;
+        }
+        
         if(fsStats == null || fsStats.length == 0){
           LOG.info("can not find any partition path in " + specTablePath);
           super.jobClose(hconf, success);

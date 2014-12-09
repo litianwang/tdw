@@ -32,6 +32,7 @@ import javax.security.auth.login.LoginException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.security.UserGroupInformation;
 
@@ -45,7 +46,7 @@ public class HiveConf extends Configuration {
   private static final Log l4j = LogFactory.getLog(HiveConf.class);
   private static URL confVarURL = null;
 
-  private static String hiveServerVersion = "TDWQEV1.0R145";
+  private static String hiveServerVersion = "TDWQEV2.0R022D001";
 
   public static String getHiveServerVersion() {
     return hiveServerVersion;
@@ -269,8 +270,15 @@ public class HiveConf extends Configuration {
         
         LHOTSE_IMPORT_EXPORT_FLAG("lz.etl.flag", "test"),
         LHOTSE_IMPORT_EXPORT_FLAG_SERVER("lz.etl.flag_server", "test"),
-        HIVEPROTOBUFVERSION("hive.protobuf.version", "2.3.0"),
+        HIVEPROTOBUFVERSION("hive.protobuf.version", "2.5.0"),
         HIVE_SELECT_STAR_CHECK_PARTITION_MAX("hive.selectstar.check.partition.maxnumber", 10),
+	  	
+        HIVE_ADJUST_RESOURCE_ENABLE("hive.adjust.resource.enbale", true),
+        HIVE_MAP_CHILD_JAVA_OPTS("mapred.map.child.java.opts", "-Xmx2048M"),
+        HIVE_REDUCE_CHILD_JAVA_OPTS("mapred.reduce.child.java.opts", "-Xmx2048M"),
+        HIVE_ADJUST_MEMORY_VARIATION_INMB("hive.adjust.memory.variation.mb", 256),
+        HIVE_SIMPLE_MAP_MEMORY_INMB("hive.simple.map.memory.mb", 1024),
+        HIVE_SIMPLE_MAP_CONTAINER_MEMORY_INMB("hive.simple.map.container.memory.mb", 1280),
 	  	
 	  	HIVE_DIVIDE_ZERO_RETURN_NULL("hive.dividezero.returnnull",false),
 	  	
@@ -278,7 +286,19 @@ public class HiveConf extends Configuration {
 	  	FETCH_EXEC_INFO_MODE("fetch.execinfo.mode","part"),
 	  	
 	  	HIVE_INPUTFILES_SPLIT_BY_LINE("hive.inputfiles.splitbylinenum",false),
-	  	HIVE_INPUTFILES_LINE_NUM_PER_SPLIT("hive.inputfiles.line_num_per_split",1000000);
+	  	HIVE_INPUTFILES_LINE_NUM_PER_SPLIT("hive.inputfiles.line_num_per_split",1000000),
+	  	
+	  	HIVE_OPT_PPR_IN("hive.optimize.ppr.in.enable", false),
+	  	HIVE_OPT_PPR_IN_RANGEPART_FUNC_SUPPORT("hive.optimize.ppr.in.rangepart.func.enable", false),
+	  	HIVE_OPT_PPR_RANGEPART_NEW("hive.optimize.ppr.rangepart.new.enable", false),
+	  	HIVE_EXEC_RANGEPART_CACHE_MAXSIZE("hive.exec.rangepart.cache.maxsize", 10000),
+	  	HIVE_CREATE_EXTTABLE_DIR_IFNOTEXIST("hive.exttable.createdir.ifnotexist", true),
+	  	HIVE_CREATE_EXTTABLE_LOCATION_AUTH("hive.exttable.location.auth", false),
+	  	HIVE_OPT_PPR_RANGEPART_NEW_ADDFIRSTPART_ALWAYS("hive.optimize.ppr.rangepart.new.addfirstpart.always", false),
+	  	HIVE_OPT_PPR_RANGEPART_NEW_CHECK_DATEFORMAT("hive.optimize.ppr.rangepart.new.check.dateformat", false),
+	  	
+	  	HIVE_UDTF_EXPLODE_CHANGE_ZERO_SIZE_2_NULL("hive.udtf.explode.change0size2null", false),
+	  	HIVE_UDTF_EXPLODE_CHANGE_NULL_2_NULL("hive.udtf.explode.change_null2null", false);
 
     public final String varname;
     public final String defaultVal;
@@ -544,10 +564,8 @@ public class HiveConf extends Configuration {
 
   public String getUser() throws IOException {
     try {
-      UserGroupInformation ugi = UserGroupInformation.readFrom(this);
-      if (ugi == null) {
-        ugi = UserGroupInformation.login(this);
-      }
+      UserGroupInformation ugi = ShimLoader.getHadoopShims()
+          .getUGIForConf(this);
       return ugi.getUserName();
     } catch (LoginException e) {
       throw (IOException) new IOException().initCause(e);

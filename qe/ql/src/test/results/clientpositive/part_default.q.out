@@ -47,35 +47,27 @@ STAGE PLANS:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
       Path -> Alias:
-        file:/data/tdwadmin/tdwqev1.0R020/qe/build/ql/test/data/warehouse/default_db/nulltest2/default [default_db/nulltest2]
-        file:/data/tdwadmin/tdwqev1.0R020/qe/build/ql/test/data/warehouse/default_db/nulltest2/par_name2 [default_db/nulltest2]
+        file:/data/allison/tdw_src/qe_gaia/build/ql/test/data/warehouse/default_db/nulltest2/default [default_db/nulltest2]
+        file:/data/allison/tdw_src/qe_gaia/build/ql/test/data/warehouse/default_db/nulltest2/par_name2 [default_db/nulltest2]
 
   Stage: Stage-0
     Fetch Operator
       limit: -1
 
-query: SELECT * FROM nulltest2 WHERE int_data1 = 1 or int_data1 = 2
-Output: file:/data/tdwadmin/tdwqev1.0R020/qe/build/ql/tmp/1174160571/10000
-2	5	true	22.15271891090531	Test
-2	NULL	false	NULL	Used
-2	3	true	8.77171395741883	The
-2	1	true	9.589949434284112	NULL
-2	0	true	32.91569954365889	Include
-2	NULL	false	NULL	RANK
-1	9	NULL	16.91358120533963	TDW
+query: SELECT * FROM nulltest2 WHERE int_data1 = 1 or int_data1 = 2 order by int_data1,int_data2,double_data
+Output: file:/data/allison/tdw_src/qe_gaia/build/ql/tmp/allison_201405222001_0.10492340333642769_-1_76074171/10000
+1	0	false	3.1145951928143676	LEAD
+1	1	true	24.506909362217737	Which
+1	1	false	32.92404678679056	Functions
 1	5	true	NULL	Set
 1	5	true	46.927050000959326	Test
-1	1	false	32.92404678679056	Functions
-1	1	true	24.506909362217737	Which
-1	0	false	3.1145951928143676	LEAD
 1	8	NULL	5.621675730832165	etc
+1	9	NULL	16.91358120533963	TDW
+2	NULL	false	NULL	RANK
+2	NULL	false	NULL	Used
+2	0	true	32.91569954365889	Include
+2	1	true	9.589949434284112	NULL
+2	3	true	8.77171395741883	The
+2	5	true	22.15271891090531	Test
 query: DROP TABLE nulltest
-query: DROP TABLE nulltest2
-query: DROP TABLE nulltest2
-query: DROP TABLE nulltest2
-query: DROP TABLE nulltest2
-query: DROP TABLE nulltest2
-query: DROP TABLE nulltest2
-query: DROP TABLE nulltest2
-query: DROP TABLE nulltest2
 query: DROP TABLE nulltest2

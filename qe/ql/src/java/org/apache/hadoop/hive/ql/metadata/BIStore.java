@@ -27,6 +27,7 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.apache.hadoop.hive.metastore.api.tdw_query_error_info;
 import org.apache.hadoop.hive.metastore.api.tdw_query_info;
 import org.apache.hadoop.hive.metastore.api.tdw_query_stat;
 import org.apache.hadoop.hive.ql.exec.InsertExeInfo;
@@ -104,7 +105,7 @@ public class BIStore {
     try {
       stmt = cc.createStatement();
       String sql = "select a.mrnum, a.finishtime, a.queryid, a.querystring, "
-          + "a.starttime, a.username, a.ip, a.taskid from tdw_query_info_new a where "
+          + "a.starttime, a.username, a.ip, a.taskid, a.port, a.clientip, a.dbname from tdw_query_info_new a where "
           + "a.queryid='" + queryID + "'";
 
       ResultSet querySet = stmt.executeQuery(sql);
@@ -119,6 +120,9 @@ public class BIStore {
         qinfo.setUserName(querySet.getString(6));
         qinfo.setIp(querySet.getString(7));
         qinfo.setTaskid(querySet.getString(8));
+        qinfo.setPort(querySet.getString(9));
+        qinfo.setClientIp(querySet.getString(10));
+        qinfo.setDbName(querySet.getString(11));
       }
 
     } catch (SQLException e) {
@@ -135,7 +139,8 @@ public class BIStore {
     try {
       stmt = cc.createStatement();
       String sql = "select a.mrnum, a.finishtime, a.queryid, a.querystring, "
-          + "a.starttime, a.username, a.ip, a.taskid, b.mapnum, b.reducenum, "
+          + "a.starttime, a.username, a.ip, a.taskid, a.port, a.clientip,"
+          + " a.dbname, b.mapnum, b.reducenum, "
           + "b.currmrfinishtime, b.currmrid, b.currmrindex, b.currmrstarttime, "
           + "b.queryid from tdw_query_info_new a, tdw_query_stat_new b where "
           + "a.queryid=b.queryid and a.username='" + user.toLowerCase() + "' "
@@ -155,13 +160,16 @@ public class BIStore {
         qinfo.setUserName(querySet.getString(6));
         qinfo.setIp(querySet.getString(7));
         qinfo.setTaskid(querySet.getString(8));
+        qinfo.setPort(querySet.getString(9));
+        qinfo.setClientIp(querySet.getString(10));
+        qinfo.setDbName(querySet.getString(11));
 
-        sinfo.setMapNum(querySet.getInt(9));
-        sinfo.setReduceNum(querySet.getInt(10));
-        sinfo.setCurrMRId(querySet.getString(12));
-        sinfo.setCurrMRIndex(querySet.getInt(13));
-        sinfo.setCurrMRStartTime(querySet.getTimestamp(14).toString());
-        sinfo.setQueryId(querySet.getString(15));
+        sinfo.setMapNum(querySet.getInt(12));
+        sinfo.setReduceNum(querySet.getInt(13));
+        sinfo.setCurrMRId(querySet.getString(15));
+        sinfo.setCurrMRIndex(querySet.getInt(16));
+        sinfo.setCurrMRStartTime(querySet.getTimestamp(17).toString());
+        sinfo.setQueryId(querySet.getString(18));
 
         ret.queryInfo = qinfo;
         ret.queryStat = sinfo;
@@ -234,17 +242,46 @@ public class BIStore {
     PreparedStatement pstmt;
     try {
       pstmt = cc
-          .prepareStatement("insert into TDW_QUERY_INFO_NEW(QUERYID,MRNUM,QUERYSTRING,USERNAME,IP,TASKID) values (?,?,?,?,?,?)");
+          .prepareStatement("insert into TDW_QUERY_INFO_NEW(QUERYID,MRNUM,QUERYSTRING,USERNAME,IP,TASKID,PORT,CLIENTIP,DBNAME,SESSIONNAME) values (?,?,?,?,?,?,?,?,?,?)");
       pstmt.setString(1, info.getQueryId());
       pstmt.setInt(2, info.getMRNum());
       pstmt.setString(3, info.getQueryString());
       pstmt.setString(4, info.getUserName());
       pstmt.setString(5, info.getIp());
       pstmt.setString(6, info.getTaskid());
+      pstmt.setString(7, info.getPort());
+      pstmt.setString(8, info.getClientIp());
+      pstmt.setString(9, info.getDbName());
+      pstmt.setString(10, SessionState.get().getSessionName());
       rt = pstmt.executeUpdate();
     } catch (SQLException e) {
       LOG.error(" insertInfo failed: " + info.getQueryId() + "  "
           + info.getTaskid());
+      e.printStackTrace();
+    }
+    return rt;
+  }
+  
+  public int insertErrorInfo(Connection cc, tdw_query_error_info info) {
+    if (cc == null || info == null) {
+      return -1;
+    }
+    int rt = -1;
+    PreparedStatement pstmt;
+    try {
+      pstmt = cc
+          .prepareStatement("insert into TDW_QUERY_ERROR_INFO_NEW(QUERYID,TASKID,IP,PORT,CLIENTIP,ERRORSTRING,SESSIONNAME) values (?,?,?,?,?,?,?)");
+      pstmt.setString(1, info.getQueryId());
+      pstmt.setString(2, info.getTaskId());
+      pstmt.setString(3, info.getIp());
+      pstmt.setString(4, info.getPort());
+      pstmt.setString(5, info.getClientIp());
+      pstmt.setString(6, info.getErrorString());
+      pstmt.setString(7, SessionState.get().getSessionName());
+      rt = pstmt.executeUpdate();
+    } catch (SQLException e) {
+      LOG.error(" insertInfo failed: " + info.getQueryId() + "  "
+          + info.getTaskId());
       e.printStackTrace();
     }
     return rt;
@@ -255,11 +292,12 @@ public class BIStore {
     PreparedStatement pstmt;
     try {
       pstmt = cc
-          .prepareStatement("insert into TDW_DDL_QUERY_INFO(QUERYID,QUERYSTRING,IP,DBNAME) values (?,?,?,?)");
+          .prepareStatement("insert into TDW_DDL_QUERY_INFO(QUERYID,QUERYSTRING,IP,DBNAME,SESSIONNAME) values (?,?,?,?,?)");
       pstmt.setString(1, queryId);
       pstmt.setString(2, queryCmd);
       pstmt.setString(3, this.getDDLQueryIP());
       pstmt.setString(4, SessionState.get().getDbName());
+      pstmt.setString(5, SessionState.get().getSessionName());
       rt = pstmt.executeUpdate();
     } catch (SQLException e) {
       LOG.error(" insertInfo failed: " + queryId);
@@ -370,13 +408,14 @@ public class BIStore {
     PreparedStatement pstmt;
     try {
       pstmt = cc
-          .prepareStatement("insert into TDW_QUERY_STAT_NEW(MAPNUM,REDUCENUM,CURRMRID,CURRMRINDEX,QUERYID,JTIP) values (?,?,?,?,?,?)");
+          .prepareStatement("insert into TDW_QUERY_STAT_NEW(MAPNUM,REDUCENUM,CURRMRID,CURRMRINDEX,QUERYID,JTIP,SESSIONNAME) values (?,?,?,?,?,?,?)");
       pstmt.setInt(1, stat.getMapNum());
       pstmt.setInt(2, stat.getReduceNum());
       pstmt.setString(3, stat.getCurrMRId());
       pstmt.setInt(4, stat.getCurrMRIndex());
       pstmt.setString(5, stat.getQueryId());
       pstmt.setString(6, stat.getJtIP());
+      pstmt.setString(7, SessionState.get().getSessionName());
       rt = pstmt.executeUpdate();
     } catch (SQLException e) {
       LOG.error(" insertStat failed: " + stat.getQueryId() + "  "

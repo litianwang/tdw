@@ -29,9 +29,12 @@ import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.plan.mapredWork;
 import org.apache.hadoop.hive.ql.plan.tableDesc;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFCardinalityEstimation;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFExplode;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFPosExplode;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.exec.ExecMapper.reportStats;
 import org.apache.hadoop.hive.serde2.Deserializer;
@@ -95,6 +98,14 @@ public class ExecReducer extends MapReduceBase implements Reducer {
     int estCountBufferSize = jc.getInt("hive.exec.estdistinct.buffsize.log", 8);
     GenericUDAFCardinalityEstimation.initParams(estCountBucketSize, estCountBufferSize);
     
+    boolean isChangSizeZero2Null = jc.getBoolean(HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_ZERO_SIZE_2_NULL.varname,
+            HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_ZERO_SIZE_2_NULL.defaultBoolVal);
+    boolean isChangeNull2Null = jc.getBoolean(HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_NULL_2_NULL.varname,
+        HiveConf.ConfVars.HIVE_UDTF_EXPLODE_CHANGE_NULL_2_NULL.defaultBoolVal);
+    GenericUDTFExplode.isChangSizeZero2Null = isChangSizeZero2Null;
+    GenericUDTFExplode.isChangNull2Null = isChangeNull2Null;
+    GenericUDTFPosExplode.isChangSizeZero2Null = isChangSizeZero2Null;
+    GenericUDTFPosExplode.isChangNull2Null = isChangeNull2Null;
     
     mapredWork gWork = Utilities.getMapRedWork(job);
     reducer = gWork.getReducer();
